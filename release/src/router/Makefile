@@ -453,7 +453,7 @@ obj-$(RTCONFIG_PPTPD) += pptpd
 
 obj-$(RTCONFIG_WEBDAV) += sqlite
 obj-$(RTCONFIG_WEBDAV) += libxml2
-obj-$(RTCONFIG_WEBDAV) += pcre-8.31
+obj-$(RTCONFIG_WEBDAV) += pcre-8.35
 obj-$(RTCONFIG_WEBDAV) += lighttpd-1.4.29
 obj-$(RTCONFIG_WEBDAV) += libexif
 
@@ -2494,7 +2494,7 @@ ifeq ($(or $(RTCONFIG_USB_BECEEM),$(RTCONFIG_MEDIA_SERVER),$(RTCONFIG_CLOUDSYNC)
 	$(STRIP) $(INSTALLDIR)/zlib/usr/lib/libz.so.1
 endif
 
-libid3tag/configure: libid3tab/configure.ac
+libid3tag/configure: libid3tag/configure.ac
 	cd libid3tag && autoreconf -i
 
 libid3tag/stamp-h1: zlib libid3tag/configure
@@ -2909,7 +2909,7 @@ else
 	cd lighttpd-1.4.29 && ./preconfigure-script-qtn touch $@
 endif
 
-lighttpd-1.4.29: shared nvram$(BCMEX) libdisk samba-3.5.8 pcre-8.31 libxml2 sqlite libexif openssl wb push_log lighttpd-1.4.29/stamp-h1
+lighttpd-1.4.29: shared nvram$(BCMEX) libdisk samba-3.5.8 pcre-8.35 libxml2 sqlite libexif openssl wb push_log lighttpd-1.4.29/stamp-h1
 	$(MAKE) -C lighttpd-1.4.29 $(PARALLEL_BUILD)
 ifeq ($(RTCONFIG_BCMARM),y)
 ifeq ($(RTCONFIG_QTN),y)
@@ -2968,28 +2968,29 @@ pcre-8.12-clean:
 	-@$(MAKE) -C pcre-8.12 clean
 	@rm -f pcre-8.12/stamp-h1
 
-pcre-8.31/configure:
-	cd pcre-8.31 && autoreconf -i
+pcre-8.35/configure:
+	cd pcre-8.35 && autoreconf -i
 
-pcre-8.31/stamp-h1: pcre-8.31/configure
-	cd pcre-8.31 && \
+pcre-8.35/stamp-h1: pcre-8.35/configure
+	cd pcre-8.35 && \
 	CC=$(CC) CXX=$(CXX) AR=$(AR) RANLIB=$(RANLIB) LD=$(LD) CFLAGS="-Os -Wall $(EXTRACFLAGS)" LIBS="$(EXTRALDFLAGS)" \
 	./$(CONFIGURE) --prefix=/usr --disable-dependency-tracking
 	touch $@
-	[ -d pcre-8.31/m4 ] || mkdir pcre-8.31/m4
+	[ -d pcre-8.35/m4 ] || mkdir pcre-8.35/m4
 
-pcre-8.31: pcre-8.31/stamp-h1
+pcre-8.35: pcre-8.35/stamp-h1
+	@$(MAKE) -C pcre-8.35 $(PARALLEL_BUILD)
 
-pcre-8.31-install: pcre-8.31
+pcre-8.35-install: pcre-8.35
 	@$(SEP)
-	install -D pcre-8.31/.libs/libpcre.so.1.0.1 $(INSTALLDIR)/pcre-8.31/usr/lib/libpcre.so.1.0.1
-	cd $(INSTALLDIR)/pcre-8.31/usr/lib && ln -sf libpcre.so.1.0.1 libpcre.so.1
-	cd $(INSTALLDIR)/pcre-8.31/usr/lib && ln -sf libpcre.so.1.0.1 libpcre.so
-	$(STRIP) -s $(INSTALLDIR)/pcre-8.31/usr/lib/libpcre.so.1.0.1
+	install -D pcre-8.35/.libs/libpcre.so.1.2.3 $(INSTALLDIR)/pcre-8.35/usr/lib/libpcre.so.1.2.3
+	cd $(INSTALLDIR)/pcre-8.35/usr/lib && ln -sf libpcre.so.1.2.3 libpcre.so.1
+	cd $(INSTALLDIR)/pcre-8.35/usr/lib && ln -sf libpcre.so.1.2.3 libpcre.so
+	$(STRIP) -s $(INSTALLDIR)/pcre-8.35/usr/lib/libpcre.so.1.2.3
 
-pcre-8.31-clean:
-	-@$(MAKE) -C pcre-8.31 clean
-	@rm -f pcre-8.31/stamp-h1
+pcre-8.35-clean:
+	-@$(MAKE) -C pcre-8.35 clean
+	@rm -f pcre-8.35/stamp-h1
 
 libxml2/configure:
 	cd libxml2 && autoreconf -i

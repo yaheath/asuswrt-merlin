@@ -10,7 +10,7 @@ sqlite_lib=$sqlite_dir/.libs
 user=`echo $HOME`								### /home/XXXXX
 echo $cur_dir
 
-PCRE_VER=8.31
+PCRE_VER=8.35
 
 ####	Set compiler variable ####
 export CFLAGS="-I$cur_dir/../pcre-$PCRE_VER -I$uclib_inc -I$cur_dir/../sqlite -I$cur_dir/../curl-7.21.7/include -I$router_dir/../include -I$router_dir/nvram${BCMEX} -I$router_dir/shared -I$router_dir/libdisk -DHAVE_OPENSSL_SSL_H=1 -DHAVE_LIBSSL=1 -DEMBEDDED_EANBLE=1"
