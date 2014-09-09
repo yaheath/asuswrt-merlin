@@ -153,7 +153,7 @@ mod_webdav_la_LIBADD = $(common_libadd) $(XML_LIBS) $(SQLITE_LIBS) $(UUID_LIBS) 
 
 
 LIBS += $(LIBSMBCLIENT_LIBS) $(XML_LIBS) $(SHARED_LIBS)
-CFLAGS += $(LIBSMBCLIENT_CFLAGS) $(XML_CFLAGS)
+AM_CFLAGS += $(LIBSMBCLIENT_CFLAGS) $(XML_CFLAGS)
 
 lib_LTLIBRARIES += mod_magnet.la
 mod_magnet_la_SOURCES = mod_magnet.c mod_magnet_cache.c

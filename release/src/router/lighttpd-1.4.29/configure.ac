@@ -17,6 +17,7 @@ dnl Checks for programs.
 AC_PROG_CC
 AM_PROG_CC_C_O
 AC_PROG_LD
+AM_PROG_AR
 AC_PROG_INSTALL
 AC_PROG_AWK
 AC_PROG_CPP
@@ -25,9 +26,9 @@ AC_PROG_LN_S
 AC_PROG_MAKE_SET
 
 dnl check environment
-AC_AIX
+#AC_AIX
 AC_ISC_POSIX
-AC_MINIX
+#AC_MINIX
 
 dnl AC_CANONICAL_HOST
 case $host_os in
@@ -39,7 +40,7 @@ AM_CONDITIONAL(NO_RDYNAMIC, test x$NO_RDYNAMIC = xyes)
 AC_EXEEXT
 
 dnl more automake stuff
-AM_C_PROTOTYPES
+#AM_C_PROTOTYPES
 
 dnl libtool
 AC_DISABLE_STATIC

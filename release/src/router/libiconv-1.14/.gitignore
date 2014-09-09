@@ -4,6 +4,10 @@
 *.libs
 *.so
 *.lo
+config.h
+libtool
+Makefile
+Makefile.in
 libcharset.so*
 lib/charset.alias
 lib/libcharset.h

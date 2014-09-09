@@ -1,8 +1,14 @@
 *.o
+aclocal.m4
 autom4te.cache
 config.h
+config.h.in
 config.log
 config.status
+configure
+/m4/*.m4
+/intl
+po/Makevars.template
 stamp-h1
 Makefile
 rdnssd/rdnssd

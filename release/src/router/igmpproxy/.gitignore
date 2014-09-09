@@ -6,9 +6,17 @@
 *.d
 stamp-h1
 Makefile
+compile
 config.h
 config.log
 config.status
+config.guess
+config.sub
+configure
+missing
+depcomp
+aclocal.m4
+Makefile.in
 doc/Makefile
 doc/igmpproxy.8
 doc/igmpproxy.conf.5

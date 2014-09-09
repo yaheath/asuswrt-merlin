@@ -7,9 +7,16 @@ stamp-h1
 .deps/
 .libs/
 Makefile
+Makefile.in
+aclocal.m4
+compile
 config.log
 config.status
+config.guess
+config.sub
+configure
+missing
+ltmain.sh
 libtool
 sqlite3
 autom4te.cache
-configure

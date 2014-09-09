@@ -1739,7 +1739,10 @@ libusb-0.1.12-clean:
 	-@$(MAKE) -C libusb-0.1.12 clean
 	@rm -f libusb-0.1.12/stamp-h1
 
-libdaemon/stamp-h1:
+libdaemon/configure:
+	cd libdaemon && env NOCONFIGURE=1 ./bootstrap.sh
+
+libdaemon/stamp-h1: libdaemon/configure
 	cd libdaemon && $(CONFIGURE) ac_cv_func_setpgrp_void=yes \
 	--disable-dependency-tracking
 	touch $@
@@ -1846,7 +1849,10 @@ radvd-install: radvd
 	install -D radvd/radvd $(INSTALLDIR)/radvd/usr/sbin/radvd
 	$(STRIP) $(INSTALLDIR)/radvd/usr/sbin/radvd
 
-ndisc6/stamp-h1:
+ndisc6/configure:
+	cd ndisc6 && autoreconf -i
+
+ndisc6/stamp-h1: ndisc6/configure
 ifeq ($(RTCONFIG_BCMARM),y)
 	cd ndisc6 && CFLAGS="-Os $(EXTRACFLAGS) -ffunction-sections -fdata-sections -I$(SRCBASE)/include -I$(TOP)/shared $(if $(RTCONFIG_HTTPS),-I$(TOP)/openssl/include/openssl)" \
 	LDFLAGS="-ffunction-sections -fdata-sections -Wl,--gc-sections $(if $(RTCONFIG_HTTPS),-L$(TOP)/openssl -lcrypto -lssl)" \
@@ -2298,7 +2304,10 @@ dropbear/config.h:
 
 # Media libraries
 
-sqlite/stamp-h1:
+sqlite/configure:
+	cd sqlite && autoreconf -i
+
+sqlite/stamp-h1: sqlite/configure
 	cd sqlite && \
 	CC=$(CC) CFLAGS="-Os $(EXTRACFLAGS) -ffunction-sections -fdata-sections -fPIC" \
 		LDFLAGS="-ffunction-sections -fdata-sections -Wl,--gc-sections" \
@@ -2485,7 +2494,10 @@ ifeq ($(or $(RTCONFIG_USB_BECEEM),$(RTCONFIG_MEDIA_SERVER),$(RTCONFIG_CLOUDSYNC)
 	$(STRIP) $(INSTALLDIR)/zlib/usr/lib/libz.so.1
 endif
 
-libid3tag/stamp-h1: zlib
+libid3tag/configure: libid3tab/configure.ac
+	cd libid3tag && autoreconf -i
+
+libid3tag/stamp-h1: zlib libid3tag/configure
 	cd libid3tag && \
 	CFLAGS="-Os -Wall $(EXTRACFLAGS) -ffunction-sections -fdata-sections" CPPFLAGS="-I$(TOP)/zlib" \
 	LDFLAGS="-L$(TOP)/zlib -fPIC -ffunction-sections -fdata-sections -Wl,--gc-sections" \
@@ -2601,7 +2613,10 @@ mDNSResponder:
 	@$(MAKE) -C mDNSResponder CC=$(CC) all $(PARALLEL_BUILD)
 
 
-igmpproxy/stamp-h1:
+igmpproxy/configure:
+	cd igmpproxy && autoreconf -i
+
+igmpproxy/stamp-h1: igmpproxy/configure
 	cd igmpproxy && CFLAGS="-O2 -Wall $(EXTRACFLAGS) -ffunction-sections -fdata-sections" \
 	LDFLAGS="-ffunction-sections -fdata-sections -Wl,--gc-sections" \
 	$(CONFIGURE) --prefix=/usr --disable-dependency-tracking
@@ -2760,8 +2775,11 @@ openpam-clean:
 	@[ ! -f openpam/Makefile ] || $(MAKE) -C openpam clean
 	@rm -f openpam/stamp-h1
 
-openvpn/stamp-h1: lzo
-	cd openvpn && ./autogen.sh && \
+openvpn/configure:
+	cd openvpn && ./autogen.sh
+
+openvpn/stamp-h1: lzo openvpn/configure
+	cd openvpn && \
 	export OPENSSL_CRYPTO_CFLAGS="-I$(TOP)/openssl/include"; \
 	export OPENSSL_CRYPTO_LIBS="-L$(TOP)/openssl -lcrypto"; \
 	export OPENSSL_SSL_CFLAGS="-I$(TOP)/openssl/include"; \
@@ -2950,7 +2968,10 @@ pcre-8.12-clean:
 	-@$(MAKE) -C pcre-8.12 clean
 	@rm -f pcre-8.12/stamp-h1
 
-pcre-8.31/stamp-h1:
+pcre-8.31/configure:
+	cd pcre-8.31 && autoreconf -i
+
+pcre-8.31/stamp-h1: pcre-8.31/configure
 	cd pcre-8.31 && \
 	CC=$(CC) CXX=$(CXX) AR=$(AR) RANLIB=$(RANLIB) LD=$(LD) CFLAGS="-Os -Wall $(EXTRACFLAGS)" LIBS="$(EXTRALDFLAGS)" \
 	./$(CONFIGURE) --prefix=/usr --disable-dependency-tracking
@@ -2970,7 +2991,10 @@ pcre-8.31-clean:
 	-@$(MAKE) -C pcre-8.31 clean
 	@rm -f pcre-8.31/stamp-h1
 
-libxml2/stamp-h1:
+libxml2/configure:
+	cd libxml2 && autoreconf -i
+
+libxml2/stamp-h1: libxml2/configure
 	cd libxml2 && \
 	CC=$(CC) AR=$(AR) RANLIB=$(RANLIB) LD=$(LD) CFLAGS="-Os -Wall $(EXTRACFLAGS)" \
 	./$(CONFIGURE) --prefix=/usr --without-python --disable-dependency-tracking
@@ -3253,7 +3277,10 @@ db-4.8.30-clean:
 	@rm -f db-4.8.30/build_unix/stamp-h1
 
 #netatalk-3.0.5
-netatalk-3.0.5/stamp-h1: openssl libgcrypt-1.5.1 db-4.8.30
+netatalk-3.0.5/configure:
+	cd $(TOP)/netatalk-3.0.5 && autoreconf -i
+
+netatalk-3.0.5/stamp-h1: openssl libgcrypt-1.5.1 db-4.8.30 netatalk-3.0.5/configure
 	cd $(TOP)/netatalk-3.0.5 && \
 	$(CONFIGURE) CPPFLAGS="-I$(TOP)/db-4.8.30/build_unix -I$(TOP)/libgcrypt-1.5.1/src" \
 	LDFLAGS="-L$(TOP)/db-4.8.30/build_unix/.libs -L$(TOP)/libgcrypt-1.5.1/src/.libs" \
