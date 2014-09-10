@@ -2811,7 +2811,10 @@ openvpn-install: openvpn
 	@mkdir -p $(TARGETDIR)/rom/easy-rsa
 	install openvpn/easy-rsa/2.0/* $(TARGETDIR)/rom/easy-rsa
 
-sdparm-1.02/stamp-h1:
+sdparm-1.02/configure:
+	cd $(TOP)/sdparm-1.02 && ./autogen.sh
+
+sdparm-1.02/stamp-h1: sdparm-1.02/configure
 	cd $(TOP)/sdparm-1.02 && $(CONFIGURE) --prefix=$(INSTALLDIR)/sdparm-1.02
 	touch $@
 

@@ -6,9 +6,16 @@
 *.d
 stamp-h1
 Makefile
+Makefile.in
+aclocal.m4
+compile
 config.h
+config.h.in
 config.log
 config.status
+config.guess
+configure
+missing
 doc/Makefile
 src/Makefile
 src/sdparm
