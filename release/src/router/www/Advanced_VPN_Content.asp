@@ -389,7 +389,7 @@ function showpptpd_clientlist(){
 						pptpd_clientlist_col[1]=pptpd_clientlist_col[1].substring(0, 30)+"...";
 						code +='<td width="35%" title="'+overlib_str1[i]+'">'+ pptpd_clientlist_col[1] +'</td>';
 					}else
-						code +='<td width="35%" title="'+pptpd_clientlist_col[0]+'">'+ pptpd_clientlist_col[0] +'</td>';
+						code +='<td width="35%" title="'+pptpd_clientlist_col[1]+'">'+ pptpd_clientlist_col[1] +'</td>';
 				} 
 			}
 			code +='<td width="15%">';
@@ -632,49 +632,7 @@ function check_vpn_server_state(){
 
 var starting = 0;
 
-/* original
-function update_vpn_server_state(){
 
-	$j.ajax({
-			url: '/ajax_openvpn_server.asp',
-			dataType: 'script',
-
-			error: function(xhr){
-					setTimeout("update_vpn_server_state();", 1000);
-			},
-
-			success: function(){
-				if(vpnd_state == '1'){
-					// Initializing
-					setTimeout("update_vpn_server_state();", 1000);
-					document.getElementById('openvpn_starting').style.display = "none";
-					document.getElementById('openvpn_initial').style.display = "";
-				}else if(vpnd_state == '0') {
-					// Failed to switch to initializing status after 5 secs - config issue?  Warn the user.
-					if (starting++ > 5) {
-						document.getElementById('openvpn_initial').style.display = "none";
-						document.getElementById('openvpn_starting').style.display = "none";
-						document.getElementById('openvpn_failed').style.display = "";
-						return;
-					}
-					setTimeout("update_vpn_server_state();", 1000);
-
-				}else if(vpnd_state == '-1') {
-					// openvpn failed with an error code
-					document.getElementById('openvpn_initial').style.display = "none";
-					document.getElementById('openvpn_starting').style.display = "none";
-					document.getElementById('openvpn_failed').style.display = "";
-					document.getElementById('openvpn_errno').innerHTML="  (Error code: " + vpnd_errno + ")";
-					return;
-
-				}else{	// OpenVPN server ready , vpn_serverX_state==2
-					setTimeout("location.href='Advanced_VPN_Content.asp';", 1000);
-					return;
-				}
-			}
-	});	
-}
-*/
 function update_vpn_server_state(){
 $j.ajax({
     		url: '/ajax_openvpn_server.asp',
