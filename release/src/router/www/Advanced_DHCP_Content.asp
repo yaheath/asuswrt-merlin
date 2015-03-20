@@ -1,4 +1,4 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <html xmlns:v>
 <head>
@@ -16,7 +16,7 @@
 <script language="JavaScript" type="text/javascript" src="/general.js"></script>
 <script language="JavaScript" type="text/javascript" src="/popup.js"></script>
 <script type="text/javascript" language="JavaScript" src="/help.js"></script>
-<script type="text/javascript" language="JavaScript" src="/detect.js"></script>
+<script type="text/javascript" language="JavaScript" src="/validator.js"></script>
 <script language="JavaScript" type="text/javascript" src="/client_function.js"></script>
 <style>
 #ClientList_Block_PC{
@@ -59,12 +59,6 @@
 }
 </style>
 <script>
-wan_route_x = '<% nvram_get("wan_route_x"); %>';
-wan_nat_x = '<% nvram_get("wan_nat_x"); %>';
-wan_proto = '<% nvram_get("wan_proto"); %>';
-
-<% login_state_hook(); %>
-var wireless = [<% wl_auth_list(); %>];	// [[MAC, associated, authorized], ...]
 var dhcp_staticlist_array = '<% nvram_get("dhcp_staticlist"); %>';
 
 if(pptpd_support){
@@ -93,6 +87,11 @@ var dhcp_gateway_curr = '<% nvram_get("dhcp_gateway_x"); %>';
 var dhcp_dns1_curr = '<% nvram_get("dhcp_dns1_x"); %>';
 var dhcp_wins_curr = '<% nvram_get("dhcp_wins_x"); %>';
 
+if(yadns_support){
+	var yadns_enable = '<% nvram_get("yadns_enable_x"); %>';
+	var yadns_mode = '<% nvram_get("yadns_mode"); %>';
+}
+
 function initial(){
 	show_menu();
 	//Viz 2011.10{ for LAN ip in DHCP pool or Static list
@@ -116,6 +115,13 @@ function initial(){
 		if(chk_vpn == true){
 	 		$("VPN_conflict").style.display = "";
 	 		$("VPN_conflict_span").innerHTML = "<#vpn_conflict_dhcp#>"+pptpd_clients;
+		}
+	}
+
+	if(yadns_support){
+		if(yadns_enable != 0 && yadns_mode != -1){
+			$("yadns_hint").style.display = "";
+			$("yadns_hint").innerHTML = "<span><#YandexDNS_settings_hint#></span>";
 		}
 	}
 
@@ -165,7 +171,7 @@ function addRow_Group(upper){
 		document.form.dhcp_staticip_x_0.select();
 		return false;
 	}else if(check_macaddr(document.form.dhcp_staticmac_x_0, check_hwaddr_flag(document.form.dhcp_staticmac_x_0)) == true &&
-		 valid_IP_form(document.form.dhcp_staticip_x_0,0) == true &&
+		 validator.validIPForm(document.form.dhcp_staticip_x_0,0) == true &&
 		 validate_dhcp_range(document.form.dhcp_staticip_x_0) == true){
 
 		//Viz check same rule  //match(ip or mac) is not accepted
@@ -318,12 +324,12 @@ function validForm(){
 	 	return false;
   }
 
-	if(!validate_ipaddr_final(document.form.dhcp_gateway_x, 'dhcp_gateway_x') ||
-			!validate_ipaddr_final(document.form.dhcp_dns1_x, 'dhcp_dns1_x') ||
-			!validate_ipaddr_final(document.form.dhcp_wins_x, 'dhcp_wins_x'))
+	if(!validator.ipAddrFinal(document.form.dhcp_gateway_x, 'dhcp_gateway_x') ||
+			!validator.ipAddrFinal(document.form.dhcp_dns1_x, 'dhcp_dns1_x') ||
+			!validator.ipAddrFinal(document.form.dhcp_wins_x, 'dhcp_wins_x'))
 		return false;
 
-	if(tmo_support && !validate_ipaddr_final(document.form.sip_server, 'sip_server'))
+	if(tmo_support && !validator.ipAddrFinal(document.form.sip_server, 'sip_server'))
 		return false;
 
 	if(!validate_dhcp_range(document.form.dhcp_start)
@@ -351,7 +357,8 @@ function validForm(){
 //} Viz 2011.10 check if DHCP pool in default pool
 
 
-	if(!validate_range(document.form.dhcp_lease, 120, 604800))
+	if(!validator.range(document.form.dhcp_lease, 120, 604800))
+ 
 		return false;
 
       	//Filtering ip address with leading zero
@@ -571,7 +578,7 @@ function check_vpn(){		//true: (DHCP ip pool & static ip ) conflict with VPN cli
       <div class="formfontdesc"><#LANHostConfig_DHCPServerConfigurable_sectiondesc#></div>
       <div id="router_in_pool" class="formfontdesc" style="color:#FFCC00;display:none;"><#LANHostConfig_DHCPServerConfigurable_sectiondesc2#><span id="LANIP"></span></div>
       <div id="VPN_conflict" class="formfontdesc" style="color:#FFCC00;display:none;"><span id="VPN_conflict_span"></span></div>
-      <div class="formfontdesc" style="margin-top:-10px;">
+      <div class="formfontdesc" style="margin-top:-10px;display:none;">
          <br>You can enter up to 128 static DHCP reservations.  If filled, the Name field content will be pushed to the
          client as the hostname.  If an invalid name is entered (such as one with spaces), then the name will only
          be used as a description on the webui itself (for example, "My Laptop").
@@ -592,7 +599,7 @@ function check_vpn(){		//true: (DHCP ip pool & static ip ) conflict with VPN cli
 			  </tr>
 
 			  <tr>
-				<th>Log DHCP queries</a></th>
+				<th>Log DHCP queries</th>
 				<td>
 				  <input type="radio" value="1" name="dhcpd_querylog" class="content_input_fd" onClick="return change_common_radio(this, 'LANHostConfig', 'dhcpd_querylog', '1')" <% nvram_match("dhcpd_querylog", "1", "checked"); %>><#checkbox_Yes#>
 				  <input type="radio" value="0" name="dhcpd_querylog" class="content_input_fd" onClick="return change_common_radio(this, 'LANHostConfig', 'dhcpd_querylog', '0')" <% nvram_match("dhcpd_querylog", "0", "checked"); %>><#checkbox_No#>
@@ -609,35 +616,35 @@ function check_vpn(){		//true: (DHCP ip pool & static ip ) conflict with VPN cli
 			  <tr>
 			  <th><a class="hintstyle" href="javascript:void(0);" onClick="openHint(5,3);"><#LANHostConfig_MinAddress_itemname#></a></th>
 			  <td>
-				<input type="text" maxlength="15" class="input_15_table" name="dhcp_start" value="<% nvram_get("dhcp_start"); %>" onKeyPress="return is_ipaddr(this,event);" >
+				<input type="text" maxlength="15" class="input_15_table" name="dhcp_start" value="<% nvram_get("dhcp_start"); %>" onKeyPress="return  validator.isIPAddr(this,event);" >
 			  </td>
 			  </tr>
 
 			  <tr>
             <th><a class="hintstyle" href="javascript:void(0);" onClick="openHint(5,4);"><#LANHostConfig_MaxAddress_itemname#></a></th>
             <td>
-              <input type="text" maxlength="15" class="input_15_table" name="dhcp_end" value="<% nvram_get("dhcp_end"); %>" onKeyPress="return is_ipaddr(this,event)" >
+              <input type="text" maxlength="15" class="input_15_table" name="dhcp_end" value="<% nvram_get("dhcp_end"); %>" onKeyPress="return validator.isIPAddr(this,event)" >
             </td>
 			  </tr>
 
 			  <tr>
             <th><a class="hintstyle" href="javascript:void(0);" onClick="openHint(5,5);"><#LANHostConfig_LeaseTime_itemname#></a></th>
             <td>
-              <input type="text" maxlength="6" name="dhcp_lease" class="input_15_table" value="<% nvram_get("dhcp_lease"); %>" onKeyPress="return is_number(this,event)">
+              <input type="text" maxlength="6" name="dhcp_lease" class="input_15_table" value="<% nvram_get("dhcp_lease"); %>" onKeyPress="return validator.isNumber(this,event)">
             </td>
 			  </tr>
 
 			  <tr>
             <th><a class="hintstyle" href="javascript:void(0);" onClick="openHint(5,6);"><#IPConnection_x_ExternalGateway_itemname#></a></th>
             <td>
-              <input type="text" maxlength="15" class="input_15_table" name="dhcp_gateway_x" value="<% nvram_get("dhcp_gateway_x"); %>" onKeyPress="return is_ipaddr(this,event)">
+              <input type="text" maxlength="15" class="input_15_table" name="dhcp_gateway_x" value="<% nvram_get("dhcp_gateway_x"); %>" onKeyPress="return validator.isIPAddr(this,event)">
             </td>
 			  </tr>
 
 			  <tr>
             <th>Sip Server</th>
             <td>
-              <input type="text" maxlength="15" class="input_15_table" name="sip_server" value="<% nvram_get("sip_server"); %>" onKeyPress="return is_ipaddr(this,event)">
+              <input type="text" maxlength="15" class="input_15_table" name="sip_server" value="<% nvram_get("sip_server"); %>" onKeyPress="return validator.isIPAddr(this,event)">
             </td>
 			  </tr>
 			</table>
@@ -651,7 +658,8 @@ function check_vpn(){		//true: (DHCP ip pool & static ip ) conflict with VPN cli
 			  <tr>
 				<th width="200"><a class="hintstyle" href="javascript:void(0);" onClick="openHint(5,7);"><#LANHostConfig_x_LDNSServer1_itemname#></a></th>
 				<td>
-				  <input type="text" maxlength="15" class="input_15_table" name="dhcp_dns1_x" value="<% nvram_get("dhcp_dns1_x"); %>" onKeyPress="return is_ipaddr(this,event)">
+				  <input type="text" maxlength="15" class="input_15_table" name="dhcp_dns1_x" value="<% nvram_get("dhcp_dns1_x"); %>" onKeyPress="return validator.isIPAddr(this,event)">
+				  <div id="yadns_hint" style="display:none;"></div>
 				</td>
 			  </tr>
 			  <tr>
@@ -664,7 +672,7 @@ function check_vpn(){		//true: (DHCP ip pool & static ip ) conflict with VPN cli
 			  <tr>
 				<th><a class="hintstyle" href="javascript:void(0);" onClick="openHint(5,8);"><#LANHostConfig_x_WINSServer_itemname#></a></th>
 				<td>
-				  <input type="text" maxlength="15" class="input_15_table" name="dhcp_wins_x" value="<% nvram_get("dhcp_wins_x"); %>" onkeypress="return is_ipaddr(this,event)"/>
+				  <input type="text" maxlength="15" class="input_15_table" name="dhcp_wins_x" value="<% nvram_get("dhcp_wins_x"); %>" onkeypress="return validator.isIPAddr(this,event)"/>
 				</td>
 			  </tr>
 			</table>
@@ -701,12 +709,12 @@ function check_vpn(){		//true: (DHCP ip pool & static ip ) conflict with VPN cli
 			  	<tr>
 				<!-- client info -->
             			<td width="27%">
-					<input type="text" class="input_20_table" maxlength="17" name="dhcp_staticmac_x_0" style="margin-left:-12px;width:170px;" onKeyPress="return is_hwaddr(this,event)" onClick="hideClients_Block();">
+					<input type="text" class="input_20_table" maxlength="17" name="dhcp_staticmac_x_0" style="margin-left:-12px;width:170px;" onKeyPress="return validator.isHWAddr(this,event)" onClick="hideClients_Block();">
 					<img id="pull_arrow" height="14px;" src="/images/arrow-down.gif" style="position:absolute;" onclick="pullLANIPList(this);" title="<#select_MAC#>" onmouseover="over_var=1;" onmouseout="over_var=0;">
 					<div id="ClientList_Block_PC" class="ClientList_Block_PC"></div>
 				</td>
             			<td width="27%">
-            				<input type="text" class="input_15_table" maxlength="15" name="dhcp_staticip_x_0" onkeypress="return is_ipaddr(this,event)">
+            				<input type="text" class="input_15_table" maxlength="15" name="dhcp_staticip_x_0" onkeypress="return validator.isIPAddr(this,event)">
             			</td>
             			<td width="27%">
 					<input type="text" class="input_15_table" maxlenght="15" onkeypress="return is_alphanum(this,event);" name="dhcp_staticname_x_0">

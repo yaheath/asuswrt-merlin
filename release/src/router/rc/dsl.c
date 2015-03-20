@@ -78,6 +78,7 @@ void convert_dsl_wan()
 		nvram_set("wan_dns2_x",nvram_safe_get("dslx_dns2"));
 		nvram_set("wan_pppoe_username",nvram_safe_get("dslx_pppoe_username"));
 		nvram_set("wan_pppoe_passwd",nvram_safe_get("dslx_pppoe_passwd"));
+		nvram_set("wan_pppoe_auth",nvram_safe_get("dslx_pppoe_auth"));
 		nvram_set("wan_pppoe_idletime",nvram_safe_get("dslx_pppoe_idletime"));
 		nvram_set("wan_pppoe_mtu",nvram_safe_get("dslx_pppoe_mtu"));
 		nvram_set("wan_pppoe_mru",nvram_safe_get("dslx_pppoe_mtu"));
@@ -99,6 +100,7 @@ void convert_dsl_wan()
 		nvram_set("wan0_dns2_x",nvram_safe_get("dslx_dns2"));
 		nvram_set("wan0_pppoe_username",nvram_safe_get("dslx_pppoe_username"));
 		nvram_set("wan0_pppoe_passwd",nvram_safe_get("dslx_pppoe_passwd"));
+		nvram_set("wan0_pppoe_auth",nvram_safe_get("dslx_pppoe_auth"));
 		nvram_set("wan0_pppoe_idletime",nvram_safe_get("dslx_pppoe_idletime"));
 		nvram_set("wan0_pppoe_mtu",nvram_safe_get("dslx_pppoe_mtu"));
 		nvram_set("wan0_pppoe_mru",nvram_safe_get("dslx_pppoe_mtu"));
@@ -151,6 +153,7 @@ void convert_dsl_wan()
 			nvram_set("wan_proto",nvram_safe_get("wan0_proto"));
 		}
 	}
+	nvram_commit();
 }
 
 
@@ -192,11 +195,19 @@ void convert_dsl_wan_settings(int req)
 
 	if (req == 2)
 	{
-		convert_dsl_config_num();
-		eval("req_dsl_drv", "reloadpvc");
 #ifdef RTCONFIG_DSL_TCLINUX
 		eval("req_dsl_drv", "rmvlan", nvram_safe_get("dslx_rmvlan"));
+
+		//set debug mode before reloadpvc
+		if(strstr(nvram_safe_get("dslx_pppoe_options"), "debug")) {
+			eval("req_dsl_drv", "wandebug", "on");
+		}
+		else {
+			eval("req_dsl_drv", "wandebug", "off");
+		}
 #endif
+		convert_dsl_config_num();
+		eval("req_dsl_drv", "reloadpvc");
 		convert_dsl_wan();
 	}
 }
@@ -292,6 +303,7 @@ void start_dsl()
 	eval("ifconfig", "vlan2", buf_ip);
 #endif
 
+#ifndef RTCONFIG_DSL_TCLINUX
 #ifdef RTCONFIG_DUALWAN
 	if (get_dualwan_secondary()==WANS_DUALWAN_IF_NONE)
 	{
@@ -304,6 +316,7 @@ void start_dsl()
 			return;
 		}
 	}
+#endif
 #endif
 
 	_eval(argv_tp_init, NULL, 0, &pid);

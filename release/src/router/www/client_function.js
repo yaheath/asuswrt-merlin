@@ -79,17 +79,20 @@ var retHostName = function(_mac){
 }
 /* end */
 
-var networkmap_fullscan = '<% nvram_get("networkmap_fullscan"); %>'
+var networkmap_fullscan = '<% nvram_get("networkmap_fullscan"); %>';
+var fromNetworkmapdCache = '<% nvram_get("client_info_tmp"); %>'.replace(/&#62/g, ">").replace(/&#60/g, "<").split('<');
 
 var originDataTmp;
 var originData = {
 	customList: decodeURIComponent('<% nvram_char_to_ascii("", "custom_clientlist"); %>').replace(/&#62/g, ">").replace(/&#60/g, "<").split('<'),
 	asusDevice: decodeURIComponent('<% nvram_char_to_ascii("", "asus_device_list"); %>').replace(/&#62/g, ">").replace(/&#60/g, "<").split('<'),
 	fromDHCPLease: '',
+	staticList: decodeURIComponent('<% nvram_char_to_ascii("", "dhcp_staticlist"); %>').replace(/&#62/g, ">").replace(/&#60/g, "<").split('<'),
 	fromNetworkmapd: '<% get_client_detail_info(); %>'.replace(/&#62/g, ">").replace(/&#60/g, "<").split('<'),
 	fromBWDPI: '<% bwdpi_device_info(); %>'.replace(/&#62/g, ">").replace(/&#60/g, "<").split('<'),
 	wlList_2g: [<% wl_sta_list_2g(); %>],
 	wlList_5g: [<% wl_sta_list_5g(); %>],
+	wlList_5g_2: [<% wl_sta_list_5g_2(); %>],
 	qosRuleList: decodeURIComponent('<% nvram_char_to_ascii("", "qos_rulelist"); %>').replace(/&#62/g, ">").replace(/&#60/g, "<").split('<'),
 	init: true
 }
@@ -97,7 +100,10 @@ var originData = {
 var totalClientNum = {
 	online: 0,
 	wireless: 0,
-	wired: 0
+	wired: 0,
+	wireless_1: 0,
+	wireless_2: 0,
+	wireless_3: 0
 }
 
 var setClientAttr = function(){
@@ -105,11 +111,13 @@ var setClientAttr = function(){
 	this.name = "";
 	this.ip = "offline";
 	this.mac = "";
+	this.from = "";
+	this.macRepeat = 1;
 	this.group = "";
 	this.dpiType = "";
 	this.rssi = "";
 	this.ssid = "";
-	this.isWL = 0; // 0: wired, 1: 2.4GHz, 2: 5GHz.
+	this.isWL = 0; // 0: wired, 1: 2.4GHz, 2: 5GHz/5GHz-1 3:5GHz-2.
 	this.qosLevel = "";
 	this.curTx = "";
 	this.curRx = "";
@@ -124,13 +132,19 @@ var setClientAttr = function(){
 	this.isASUS = false;
 	this.isLogin = false;
 	this.isOnline = false;
-	this.isCustom = false;
+	this.ipMethod = "DHCP";
 }
 
 var clientList = new Array(0);
 function genClientList(){
 	clientList = [];
 	totalClientNum.wireless = 0;
+	totalClientNum.wireless_1 = 0;
+	totalClientNum.wireless_2 = 0;
+	totalClientNum.wireless_3 = 0;
+
+	if(fromNetworkmapdCache.length > 1 && networkmap_fullscan == 1)
+		originData.fromNetworkmapd = fromNetworkmapdCache;
 
 	for(var i=0; i<originData.asusDevice.length; i++){
 		var thisClient = originData.asusDevice[i].split(">");
@@ -140,9 +154,18 @@ function genClientList(){
 			continue;
 		}
 
-		clientList.push(thisClientMacAddr);
-		clientList[thisClientMacAddr] = new setClientAttr();
-
+		if(typeof clientList[thisClientMacAddr] == "undefined"){
+			clientList.push(thisClientMacAddr);
+			clientList[thisClientMacAddr] = new setClientAttr();
+			clientList[thisClientMacAddr].from = "asusDevice";
+		}
+		else{
+			if(clientList[thisClientMacAddr].from == "asusDevice")
+				clientList[thisClientMacAddr].macRepeat++;
+			else
+				clientList[thisClientMacAddr].from = "asusDevice";
+		}
+		
 		clientList[thisClientMacAddr].type = thisClient[0];
 		clientList[thisClientMacAddr].name = thisClient[1];
 		clientList[thisClientMacAddr].ip = thisClient[2];
@@ -167,6 +190,13 @@ function genClientList(){
 		if(typeof clientList[thisClientMacAddr] == "undefined"){
 			clientList.push(thisClientMacAddr);
 			clientList[thisClientMacAddr] = new setClientAttr();
+			clientList[thisClientMacAddr].from = "networkmapd";
+		}
+		else{
+			if(clientList[thisClientMacAddr].from == "networkmapd")
+				clientList[thisClientMacAddr].macRepeat++;
+			else
+				clientList[thisClientMacAddr].from = "networkmapd";
 		}
 
 		if(clientList[thisClientMacAddr].type == "")
@@ -213,13 +243,14 @@ function genClientList(){
 		var thisClient = originData.customList[i].split(">");
 		var thisClientMacAddr = (typeof thisClient[1] == "undefined") ? false : thisClient[1].toUpperCase();
 
-		if(!thisClientMacAddr || typeof clientList[thisClientMacAddr] == "undefined"){
+		if(!thisClientMacAddr){
 			continue;
 		}
 
 		if(typeof clientList[thisClientMacAddr] == "undefined"){
 			clientList.push(thisClientMacAddr);
 			clientList[thisClientMacAddr] = new setClientAttr();
+			clientList[thisClientMacAddr].from = "customList";
 		}
 
 		clientList[thisClientMacAddr].name = thisClient[0];
@@ -227,7 +258,6 @@ function genClientList(){
 		clientList[thisClientMacAddr].group = thisClient[2];
 		clientList[thisClientMacAddr].type = thisClient[3];
 		clientList[thisClientMacAddr].callback = thisClient[4];
-		clientList[thisClientMacAddr].isCustom = true;
 	}
 
 	for(var i=0; i<originData.wlList_2g.length; i++){
@@ -240,6 +270,7 @@ function genClientList(){
 		clientList[thisClientMacAddr].rssi = originData.wlList_2g[i][3];
 		clientList[thisClientMacAddr].isWL = 1;
 		totalClientNum.wireless++;
+		totalClientNum.wireless_1++;
 	}
 
 	for(var i=0; i<originData.wlList_5g.length; i++){
@@ -252,7 +283,21 @@ function genClientList(){
 		clientList[thisClientMacAddr].rssi = originData.wlList_5g[i][3];
 		clientList[thisClientMacAddr].isWL = 2;
 		totalClientNum.wireless++;
+		totalClientNum.wireless_2++;
 	}
+
+	for(var i=0; i<originData.wlList_5g_2.length; i++){
+		var thisClientMacAddr = (typeof originData.wlList_5g_2[i][0] == "undefined") ? false : originData.wlList_5g_2[i][0].toUpperCase();
+
+		if(!thisClientMacAddr || typeof clientList[thisClientMacAddr] == "undefined"){
+			continue;
+		}
+
+		clientList[thisClientMacAddr].rssi = originData.wlList_5g_2[i][3];
+		clientList[thisClientMacAddr].isWL = 3;
+		totalClientNum.wireless++;
+		totalClientNum.wireless_3++;
+	}	
 
 
 	if(typeof login_mac_str == "function"){
@@ -276,7 +321,78 @@ function genClientList(){
 		}
 	}
 
+	for(var i = 0; i < leaseArray.mac.length; i += 1) {
+		if(typeof clientList[leaseArray.mac[i]] != "undefined"){
+			clientList[leaseArray.mac[i]].ipMethod = "DHCP";
+		}
+	}
+
+	for(var i=0; i<originData.staticList.length; i++){
+		if('<% nvram_get("dhcp_static_x"); %>' == "0") break;
+
+		var thisClient = originData.staticList[i].split(">");
+		var thisClientMacAddr = (typeof thisClient[0] == "undefined") ? false : thisClient[0].toUpperCase();
+
+		if(!thisClientMacAddr || typeof clientList[thisClientMacAddr] == "undefined"){
+			continue;
+		}
+
+		if(typeof clientList[thisClientMacAddr] != "undefined"){
+			if(clientList[thisClientMacAddr].ip == thisClient[1] && clientList[thisClientMacAddr].ipMethod == "DHCP") {
+				clientList[thisClientMacAddr].ipMethod = "Manual";
+			}
+		}
+	}
+
 	totalClientNum.wired = parseInt(totalClientNum.online - totalClientNum.wireless);
+}
+
+function getUploadIcon(clientMac) {
+	var result = "NoIcon";
+	$j.ajax({
+		url: '/ajax_uploadicon.asp?clientmac=' + clientMac,
+		async: false,
+		dataType: 'script',
+		error: function(xhr){
+			setTimeout("getUploadIcon('" + clientMac + "');", 1000);
+		},
+		success: function(response){
+			result = upload_icon;
+		}
+	});
+	return result
+}
+
+function getUploadIconCount() {
+	var count = 0;
+	$j.ajax({
+		url: '/ajax_uploadicon.asp',
+		async: false,
+		dataType: 'script',
+		error: function(xhr){
+			setTimeout("getUploadIconCount();", 1000);
+		},
+		success: function(response){
+			count = upload_icon_count;
+		}
+	});
+	return count
+}
+
+function getUploadIconList() {
+	var list = "";
+	$j.ajax({
+		url: '/ajax_uploadicon.asp',
+		async: false,
+		dataType: 'script',
+		error: function(xhr){
+			setTimeout("getUploadIconList();", 1000);
+		},
+		success: function(response){
+			list = upload_icon_list;
+		}
+	});
+	return list
 }
 
 

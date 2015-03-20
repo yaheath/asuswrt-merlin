@@ -19,35 +19,93 @@ var accounts = [<% get_all_accounts(); %>];
 var ddns_enable = '<% nvram_get("ddns_enable_x"); %>';
 var ddns_server = '<% nvram_get("ddns_server_x"); %>';
 var ddns_hostname = '<% nvram_get("ddns_hostname_x"); %>';
-var format_of_first_partition = parent.pool_types()[0]; //"ntfs";
+
 function initial(){
 	parent.hideLoading();
-	showdisklink();
 
 	if(FTP_mode == 1)
 		$("noFTP_Hint").style.display = "";
+
+ 	require(['/require/modules/diskList.js'], function(diskList){
+		var mount_num = 0;
+ 		var usbDevicesList = diskList.list();
+
+		for(var i=0; i < usbDevicesList.length; ++i)
+			mount_num += usbDevicesList[i].mountNumber;
+
+		if(mount_num == 0){ // No USB disk plug.
+			$("AiDiskWelcome_desp").style.display = 'none';
+			$("linkdiskbox").style.display = 'none';
+			$("Nodisk_hint").style.display = 'block';
+			$("gotonext").style.display = 'none';
+			return;
+		}
+		else if(dummyShareway != ""){  // Ever config aidisk wizard
+			$("AiDiskWelcome_desp").style.display = 'none';
+			$("linkdiskbox").style.display = 'block';
+			$("settingBtn").innerHTML = "<#CTL_Reset_OOB#>";
+
+			show_share_link();
+		}
+		else{
+			$("linkdiskbox").style.display = 'none';
+		}	
+	});
+
+	if(document.getElementById("tosLink").style.display == "")
+			update_tosLink_url();
+	if(document.getElementById("tosLink2").style.display == "")
+			update_tosLink2_url();
+}
+var preferLang = parent.document.form.preferred_lang.value.toLowerCase();
+
+function update_tosLink_url(){														
+									if(preferLang == "cn")
+										document.getElementById("tosLink").href = "http://www.asus.com.cn";
+									else if(preferLang == "ms")
+										document.getElementById("tosLink").href = "http://www.asus.com/my";
+									else if(preferLang == "da")
+										document.getElementById("tosLink").href = "http://www.asus.com/dk";
+									else if(preferLang == "sv")
+										document.getElementById("tosLink").href = "http://www.asus.com/se";
+									else if(preferLang == "uk")
+										document.getElementById("tosLink").href = "http://www.asus.com/ua";									
+									else if(
+										preferLang == "tw" || preferLang == "cz" || preferLang == "pl" || preferLang == "ro" ||
+										preferLang == "ru" || preferLang == "de" || preferLang == "fr" || preferLang == "hu" ||
+										preferLang == "tr" || preferLang == "th" || preferLang == "no" || preferLang == "it" ||
+										preferLang == "fi" || preferLang == "br" || preferLang == "jp" || preferLang == "es"
+									){
+										document.getElementById("tosLink").href = "http://www.asus.com/" + preferLang;
+									}
+									else
+										document.getElementById("tosLink").href = "http://www.asus.com/us";
+
+									document.getElementById("tosLink").href += "/Terms_of_Use_Notice_Privacy_Policy/Official_Site";
 }
 
-function showdisklink(){
-	if(detect_mount_status() == 0){ // No USB disk plug.
-		$("AiDiskWelcome_desp").style.display = 'none';
-		$("linkdiskbox").style.display = 'none';
-		$("Nodisk_hint").style.display = 'block';
-		$("gotonext").style.display = 'none';
-		return;
-	}
-	else if(dummyShareway != ""){  // Ever config aidisk wizard
-		$("AiDiskWelcome_desp").style.display = 'none';
-		$("linkdiskbox").style.display = 'block';
-		$("settingBtn").innerHTML = "<#CTL_Reset_OOB#>";
+function update_tosLink2_url(){
+										if(preferLang == "cn")
+											document.getElementById("tosLink2").href = "http://www.asus.com.cn";
+										else if(preferLang == "ms")
+											document.getElementById("tosLink2").href = "http://www.asus.com/my";										
+										else if(preferLang == "da")
+											document.getElementById("tosLink2").href = "http://www.asus.com/dk";
+										else if(preferLang == "sv")
+											document.getElementById("tosLink2").href = "http://www.asus.com/se";
+										else if(preferLang == "uk")
+											document.getElementById("tosLink2").href = "http://www.asus.com/ua";
+										else if(
+											preferLang == "tw" || preferLang == "cz" || preferLang == "pl" || preferLang == "ro" ||
+											preferLang == "ru" || preferLang == "de" || preferLang == "fr" || preferLang == "hu" ||
+											preferLang == "tr" || preferLang == "th" || preferLang == "no" || preferLang == "it" ||
+											preferLang == "fi" || preferLang == "br" || preferLang == "jp" || preferLang == "es"
+										)
+											document.getElementById("tosLink2").href = "http://www.asus.com/" + preferLang;
+										else
+											document.getElementById("tosLink2").href = "http://www.asus.com/us";
 
-		show_share_link();
-	}
-	else{  // Never config aidisk wizard
-		$("linkdiskbox").style.display = 'none';
-//		$("AiDisk_scenerio").style.display = 'block';
-	}	
-	// access the disk from LAN
+										document.getElementById("tosLink2").href += "/Terms_of_Use_Notice_Privacy_Policy/Official_Site";										
 }
 
 function show_share_link(){
@@ -56,36 +114,21 @@ function show_share_link(){
 	if(FTP_status == 1 && ddns_enable == 1 && ddns_server.length > 0 && ddns_hostname.length > 0){
 		if(FTP_mode == 1 || dummyShareway == 0){
 			$("ddnslink1").style.display = ""; 
-			showtext($("ddnslink1"), '<#Internet#>&nbsp;<#AiDisk_linktoFTP_fromInternet#>&nbsp;<a id="ddnslink1_link" target="_blank" style="text-decoration: underline; font-family:Lucida Console;">ftp://<% nvram_get("ddns_hostname_x"); %></a>');
-			if(getBrowser_info().ie != undefined || getBrowser_info().ie != null)
-				$("ddnslink1_link").href = 'ftp://<% nvram_get("productid"); %>@<% nvram_get("ddns_hostname_x"); %>';
-			else
-				$("ddnslink1_link").href = 'ftp://<% nvram_get("ddns_hostname_x"); %>';
-			
+			showtext($("ddnslink1"), 'Internet FTP address: <a id="ddnslink1_link" target="_blank" style="text-decoration: underline; font-family:Lucida Console;">ftp://<% nvram_get("ddns_hostname_x"); %></a>');
+						
 			$("desc_2").style.display = ""; 
-			$("ddnslink1_LAN").style.display = ""; 			
-			showtext($("ddnslink1_LAN"), '<#t2LAN#>&nbsp;<#AiDisk_linktoFTP_fromInternet#>&nbsp;<a id="ddnslink1_LAN_link" target="_blank" style="text-decoration: underline; font-family:Lucida Console;">ftp://<% nvram_get("lan_ipaddr"); %></a>');
-			if(getBrowser_info().ie != undefined || getBrowser_info().ie != null)
-				$("ddnslink1_LAN_link").href = 'ftp://<% nvram_get("productid"); %>@<% nvram_get("lan_ipaddr"); %>';
-			else
-				$("ddnslink1_LAN_link").href = 'ftp://<% nvram_get("lan_ipaddr"); %>';
+			$("ddnslink1_LAN").style.display = "";
+			showtext($("ddnslink1_LAN"), 'LAN FTP address: <a id="ddnslink1_LAN_link" target="_blank" style="text-decoration: underline; font-family:Lucida Console;">ftp://<% nvram_get("lan_ipaddr"); %></a>');
+			
 		}
 		else if(FTP_mode == 2){
 			$("ddnslink2").style.display = "";
-			showtext($("ddnslink2"), '<#Internet#>&nbsp;<#AiDisk_linktoFTP_fromInternet#>&nbsp;<a id="ddnslink2_link" target="_blank" style="text-decoration: underline; font-family:Lucida Console;">ftp://<% nvram_get("ddns_hostname_x"); %></a>');
-			if(getBrowser_info().ie != undefined || getBrowser_info().ie != null)
-				$("ddnslink2_link").href = 'ftp://<% nvram_get("productid"); %>@<% nvram_get("ddns_hostname_x"); %>';
-			else
-				$("ddnslink2_link").href = 'ftp://<% nvram_get("ddns_hostname_x"); %>';
-			
+			showtext($("ddnslink2"), 'Internet FTP address: <a id="ddnslink2_link" target="_blank" style="text-decoration: underline; font-family:Lucida Console;">ftp://<% nvram_get("ddns_hostname_x"); %></a>');
+						
 			$("desc_2").style.display = ""; 
 			$("ddnslink2_LAN").style.display = ""; 			
-			showtext($("ddnslink2_LAN"), '<#t2LAN#>&nbsp;<#AiDisk_linktoFTP_fromInternet#>&nbsp;<a id="ddnslink2_LAN_link" target="_blank" style="text-decoration: underline; font-family:Lucida Console;">ftp://<% nvram_get("lan_ipaddr"); %></a>');
-			if(getBrowser_info().ie != undefined || getBrowser_info().ie != null)
-				$("ddnslink2_LAN_link").href = 'ftp://<% nvram_get("productid"); %>@<% nvram_get("lan_ipaddr"); %>';
-			else
-				$("ddnslink2_LAN_link").href = 'ftp://<% nvram_get("lan_ipaddr"); %>';
-			$("ddnslink2_LAN_link").innerHTML = 'ftp://<% nvram_get("lan_ipaddr"); %>';
+			showtext($("ddnslink2_LAN"), 'LAN FTP address: <a id="ddnslink2_LAN_link" target="_blank" style="text-decoration: underline; font-family:Lucida Console;">ftp://<% nvram_get("lan_ipaddr"); %></a>');
+			
 		}
 	}
 	else{
@@ -97,17 +140,11 @@ function show_share_link(){
 			$("desc_2").style.display = ""; 
 			$("ddnslink1_LAN").style.display = "";			
 			if(FTP_mode == 1){
-					showtext($("ddnslink1_LAN"), '<#t2LAN#>&nbsp;<#AiDisk_linktoFTP_fromInternet#>&nbsp;<a id="ddnslink1_LAN_link" target="_blank" style="text-decoration: underline; font-family:Lucida Console;">ftp://<% nvram_get("lan_ipaddr"); %></a>');
-					if(getBrowser_info().ie != undefined || getBrowser_info().ie != null)
-						$("ddnslink1_LAN_link").href = 'ftp://<% nvram_get("productid"); %>@<% nvram_get("lan_ipaddr"); %>';
-					else
-						$("ddnslink1_LAN_link").href = 'ftp://<% nvram_get("lan_ipaddr"); %>';
+					showtext($("ddnslink1_LAN"), 'LAN FTP address: <a id="ddnslink1_LAN_link" target="_blank" style="text-decoration: underline; font-family:Lucida Console;">ftp://<% nvram_get("lan_ipaddr"); %></a>');
+					
 			}else{
-					showtext($("ddnslink1_LAN"), '<#t2LAN#>&nbsp;<#AiDisk_linktoFTP_fromInternet#>&nbsp;<a id="ddnslink1_LAN_link" target="_blank" style="text-decoration: underline; font-family:Lucida Console;">ftp://<% nvram_get("lan_ipaddr"); %></a>');
-					if(getBrowser_info().ie != undefined || getBrowser_info().ie != null)
-						$("ddnslink1_LAN_link").href = 'ftp://<% nvram_get("productid"); %>@<% nvram_get("lan_ipaddr"); %>';
-					else
-						$("ddnslink1_LAN_link").href = 'ftp://<% nvram_get("lan_ipaddr"); %>';		
+					showtext($("ddnslink1_LAN"), 'LAN FTP address: <a id="ddnslink1_LAN_link" target="_blank" style="text-decoration: underline; font-family:Lucida Console;">ftp://<% nvram_get("lan_ipaddr"); %></a>');
+						
 			}		
 		}else if(ddns_hostname.length <= 0){
 			showtext($("noWAN_link"), "<#linktoFTP_no_3#>");
@@ -117,10 +154,6 @@ function show_share_link(){
 }
 
 function detect_mount_status(){
-	var mount_num = 0;
-	for(var i = 0; i < parent.foreign_disk_total_mounted_number().length; ++i)
-		mount_num += parent.foreign_disk_total_mounted_number()[i];
-	return mount_num;
 }
 
 function go_next_page(){
@@ -156,8 +189,8 @@ function go_next_page(){
 
 	<tr>
 		<td>
-			<div style="width:660px; line-height:180%;">
-	  		<div id="Nodisk_hint" class="alert_string" style="display:none;"><#no_usb_found#></div>
+			<div style="width:660px;line-height:180%;font-size:16px;margin-left:30px;">
+	  			<div id="Nodisk_hint" class="alert_string" style="display:none;"><#no_usb_found#></div>
 
 				<div id="AiDiskWelcome_desp">
 			  	<#AiDiskWelcome_desp#>
@@ -169,35 +202,6 @@ function go_next_page(){
 							<a id="tosLink" style="cursor:pointer;font-family:Lucida Console;text-decoration:underline;" target="_blank" href="">
 								<#DDNS_termofservice_Title#>
 							</a>
-							<script>
-								(function(){
-									var preferLang = parent.document.form.preferred_lang.value.toLowerCase();
-
-									if(preferLang == "cn")
-										document.getElementById("tosLink").href = "http://www.asus.com.cn";
-									else if(preferLang == "ms")
-										document.getElementById("tosLink").href = "http://www.asus.com/my";
-									else if(preferLang == "en")
-										document.getElementById("tosLink").href = "http://www.asus.com/us";
-									else if(preferLang == "da")
-										document.getElementById("tosLink").href = "http://www.asus.com/dk";
-									else if(preferLang == "sv")
-										document.getElementById("tosLink").href = "http://www.asus.com/se";
-									else if(preferLang == "uk")
-										document.getElementById("tosLink").href = "http://www.asus.com/ua";
-									else if(
-										preferLang == "tw" || preferLang == "cz" || preferLang == "pl" || preferLang == "ro" ||
-										preferLang == "ru" || preferLang == "de" || preferLang == "fr" || preferLang == "hu" ||
-										preferLang == "tr" || preferLang == "th" || preferLang == "no" || preferLang == "it" ||
-										preferLang == "fi" || preferLang == "br" || preferLang == "jp" || preferLang == "es"
-									)
-										document.getElementById("tosLink").href = "http://www.asus.com/" + preferLang;
-									else
-										document.getElementById("tosLink").href = "http://www.asus.com/us";
-
-									document.getElementById("tosLink").href += "/Terms_of_Use_Notice_Privacy_Policy/Official_Site"
-								})()
-							</script>
 						</li>
 		  		</ul>
 		  	</div>
@@ -223,35 +227,6 @@ function go_next_page(){
 								<a id="tosLink2" style="cursor:pointer;font-family:Lucida Console;text-decoration:underline;" target="_blank" href="">
 									<#DDNS_termofservice_Title#>
 								</a>
-								<script>
-									(function(){
-										var preferLang = parent.document.form.preferred_lang.value.toLowerCase();
-
-										if(preferLang == "cn")
-											document.getElementById("tosLink2").href = "http://www.asus.com.cn";
-										else if(preferLang == "ms")
-											document.getElementById("tosLink2").href = "http://www.asus.com/my";
-										else if(preferLang == "en")
-											document.getElementById("tosLink2").href = "http://www.asus.com/us";
-										else if(preferLang == "da")
-											document.getElementById("tosLink2").href = "http://www.asus.com/dk";
-										else if(preferLang == "sv")
-											document.getElementById("tosLink2").href = "http://www.asus.com/se";
-										else if(preferLang == "uk")
-											document.getElementById("tosLink2").href = "http://www.asus.com/ua";
-										else if(
-											preferLang == "tw" || preferLang == "cz" || preferLang == "pl" || preferLang == "ro" ||
-											preferLang == "ru" || preferLang == "de" || preferLang == "fr" || preferLang == "hu" ||
-											preferLang == "tr" || preferLang == "th" || preferLang == "no" || preferLang == "it" ||
-											preferLang == "fi" || preferLang == "br" || preferLang == "jp" || preferLang == "es"
-										)
-											document.getElementById("tosLink2").href = "http://www.asus.com/" + preferLang;
-										else
-											document.getElementById("tosLink2").href = "http://www.asus.com/us";
-
-										document.getElementById("tosLink2").href += "/Terms_of_Use_Notice_Privacy_Policy/Official_Site"
-									})()
-								</script>
 							</li>	
 		  			</ul>
 		  	</div>		

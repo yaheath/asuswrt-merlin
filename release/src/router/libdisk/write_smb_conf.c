@@ -28,7 +28,7 @@
 #include "usb_info.h"
 #include "disk_initial.h"
 #include "disk_share.h"
-
+#include <shared.h>
 #include <linux/version.h>
 
 #define SAMBA_CONF "/etc/smb.conf"
@@ -270,6 +270,16 @@ int main(int argc, char *argv[])
 	fprintf(fp, "encrypt passwords = yes\n");
 	fprintf(fp, "pam password change = no\n");
 	fprintf(fp, "null passwords = yes\n");		// ASUS add
+#ifdef RTCONFIG_SAMBA_MODERN
+	if (nvram_get_int("smbd_enable_smb2"))
+		fprintf(fp, "max protocol = SMB2\n");
+	else
+		fprintf(fp, "max protocol = NT1\n");
+
+	fprintf(fp, "passdb backend = smbpasswd\n");
+	fprintf(fp, "smb encrypt = disabled\n");
+	fprintf(fp, "smb passwd file = /etc/samba/smbpasswd\n");
+#endif
 
 	fprintf(fp, "force directory mode = 0777\n");
 	fprintf(fp, "force create mode = 0777\n");
@@ -668,23 +678,11 @@ int main(int argc, char *argv[])
 confpage:
 	if(fp != NULL) {
 
-		if (check_if_file_exist("/jffs/configs/smb.conf.add")) {
-			char *addendum = read_whole_file("/jffs/configs/smb.conf.add");
-			if (addendum) {
-				fwrite(addendum, 1, strlen(addendum), fp);
-				free(addendum);
-			}
-
-        	}
+		append_custom_config("smb.conf", fp);
 		fclose(fp);
 
-		if (check_if_file_exist("/jffs/configs/smb.conf")) {
-			eval("cp","/jffs/configs/smb.conf",SAMBA_CONF,NULL);
-		}
-
-		if (check_if_file_exist("/jffs/scripts/smb.postconf")) {
-			eval("/jffs/scripts/smb.postconf", SAMBA_CONF);
-		}
+		use_custom_config("smb.conf", SAMBA_CONF);
+		run_postconf("smb", SAMBA_CONF);
 	}
 
 	free_disk_data(&disks_info);

@@ -21,17 +21,12 @@ p{
 <script language="JavaScript" type="text/javascript" src="/general.js"></script>
 <script language="JavaScript" type="text/javascript" src="/popup.js"></script>
 <script language="JavaScript" type="text/javascript" src="/help.js"></script>
-<script language="JavaScript" type="text/javascript" src="/detect.js"></script>
 <script language="JavaScript" type="text/javascript" src="/tmhist.js"></script>
 <script language="JavaScript" type="text/javascript" src="/tmmenu.js"></script>
 <script language="JavaScript" type="text/javascript" src="/client_function.js"></script>
 <script language="JavaScript" type="text/javascript" src="/jquery.js"></script>
 <script language="JavaScript" type="text/javascript" src="/jquery.xdomainajax.js"></script>
 <script>
-
-wan_route_x = '<% nvram_get("wan_route_x"); %>';
-wan_nat_x = '<% nvram_get("wan_nat_x"); %>';
-wan_proto = '<% nvram_get("wan_proto"); %>';
 
 hwacc = "<% nvram_get("ctf_disable"); %>";
 hwacc_force = "<% nvram_get("ctf_disable_force"); %>";
@@ -47,26 +42,31 @@ overlib.isOut = true;
 
 function initial(){
 	show_menu();
-	if (!band5g_support) $("wifi5_clients_tr").style.display = "none";
-	if (based_modelid == "RT-AC87U") {
-		$("wifi5_clients_tr").style.display = "none";
-		$("wifi5_clients_tr_qtn").style.display = "";
-		$("qtn_version").style.display = "";
-	}
+
+	if (wl_info.band5g_2_support) {
+		document.getElementById("wifi5_1_clients_tr").style.display = "";
+		document.getElementById("wifi5_2_clients_tr").style.display = "";
+        } else if (based_modelid == "RT-AC87U") {
+                document.getElementById("wifi5_clients_tr_qtn").style.display = "";
+                document.getElementById("qtn_version").style.display = "";
+        } else if (band5g_support) {
+                document.getElementById("wifi5_clients_tr").style.display = "";
+        }
+
 	showbootTime();
 
 	if (odmpid != "")
-		$("model_id").innerHTML = odmpid;
+		document.getElementById("model_id").innerHTML = odmpid;
 	else
-		$("model_id").innerHTML = productid;
+		document.getElementById("model_id").innerHTML = productid;
 
 	var buildno = '<% nvram_get("buildno"); %>';
 	var firmver = '<% nvram_get("firmver"); %>'
 	var extendno = '<% nvram_get("extendno"); %>';
 	if ((extendno == "") || (extendno == "0"))
-		$("fwver").innerHTML = firmver + "." + buildno;
+		document.getElementById("fwver").innerHTML = firmver + "." + buildno;
 	else
-		$("fwver").innerHTML =  firmver + "." + buildno + '_' + extendno.split("-g")[0];
+		document.getElementById("fwver").innerHTML =  firmver + "." + buildno + '_' + extendno.split("-g")[0];
 
 	update_temperatures();
 	hwaccel_state();
@@ -86,10 +86,10 @@ function update_temperatures(){
 			if (band5g_support) {
 				code += "&nbsp;&nbsp;-&nbsp;&nbsp;<b>5 GHz:</b> <span>" + curr_coreTmp_5_raw + "</span>";
 			}
-			if ((based_modelid == "RT-N18U") || (based_modelid == "RT-AC56U") || (based_modelid == "RT-AC56S") || (based_modelid == "RT-AC68U") || (based_modelid == "RT-AC87U")) {
+			if ((based_modelid == "RT-N18U") || (based_modelid == "RT-AC56U") || (based_modelid == "RT-AC56S") || (based_modelid == "RT-AC68U") || (based_modelid == "RT-AC87U") || (based_modelid == "RT-AC68U") || (based_modelid == "RT-AC3200")) {
 				code +="&nbsp;&nbsp;-&nbsp;&nbsp;<b>CPU:</b> <span>" + curr_coreTmp_cpu +"&deg;C</span>";
 			}
-			$("temp_td").innerHTML = code;
+			document.getElementById("temp_td").innerHTML = code;
 			setTimeout("update_temperatures();", 3000);
 		}
 	});
@@ -127,7 +127,7 @@ function hwaccel_state(){
 		code = "<span>N/A</span>";
 	}
 
-	$("hwaccel").innerHTML = code;
+	document.getElementById("hwaccel").innerHTML = code;
 }
 
 
@@ -137,10 +137,10 @@ function showbootTime(){
         Minutes = Math.floor(boottime % 3600 / 60);
         Seconds = Math.floor(boottime % 60);
         
-        $("boot_days").innerHTML = Days;
-        $("boot_hours").innerHTML = Hours;
-        $("boot_minutes").innerHTML = Minutes;
-        $("boot_seconds").innerHTML = Seconds;
+        document.getElementById("boot_days").innerHTML = Days;
+        document.getElementById("boot_hours").innerHTML = Hours;
+        document.getElementById("boot_minutes").innerHTML = Minutes;
+        document.getElementById("boot_seconds").innerHTML = Seconds;
         boottime += 1;
         setTimeout("showbootTime()", 1000);
 }
@@ -218,7 +218,7 @@ function show_etherstate(){
 		}
 	}
 	code += code_ports + '</table>';
-	$("etherstate_td").innerHTML = code;
+	document.getElementById("etherstate_td").innerHTML = code;
 }
 
 function updateClientList(e){
@@ -421,23 +421,39 @@ function updateClientList(e){
 					<tr>
 						<th>Wireless clients (2.4 GHz)</th>
 						<td>
+							Associated: <span><% sysinfo("conn.wifi.0.assoc"); %></span>&nbsp;&nbsp;-&nbsp;&nbsp;
+							Authorized: <span><% sysinfo("conn.wifi.0.autho"); %></span>&nbsp;&nbsp;-&nbsp;&nbsp;
+							Authenticated: <span><% sysinfo("conn.wifi.0.authe"); %></span>
+						</td>
+					</tr>
+					<tr id="wifi5_clients_tr" style="display:none;">
+						<th>Wireless clients (5 GHz)</th>
+						<td>
+							Associated: <span><% sysinfo("conn.wifi.1.assoc"); %></span>&nbsp;&nbsp;-&nbsp;&nbsp;
+							Authorized: <span><% sysinfo("conn.wifi.1.autho"); %></span>&nbsp;&nbsp;-&nbsp;&nbsp;
+							Authenticated: <span><% sysinfo("conn.wifi.1.authe"); %></span>
+						</td>
+					</tr>
+					<tr id="wifi5_1_clients_tr" style="display:none;">
+						<th>Wireless clients (5 GHz-1)</th>
+						<td>
+							Associated: <span><% sysinfo("conn.wifi.1.assoc"); %></span>&nbsp;&nbsp;-&nbsp;&nbsp;
+							Authorized: <span><% sysinfo("conn.wifi.1.autho"); %></span>&nbsp;&nbsp;-&nbsp;&nbsp;
+							Authenticated: <span><% sysinfo("conn.wifi.1.authe"); %></span>
+						</td>
+					</tr>
+					<tr id="wifi5_2_clients_tr" style="display:none;">
+						<th>Wireless clients (5 GHz-2)</th>
+						<td>
 							Associated: <span><% sysinfo("conn.wifi.2.assoc"); %></span>&nbsp;&nbsp;-&nbsp;&nbsp;
 							Authorized: <span><% sysinfo("conn.wifi.2.autho"); %></span>&nbsp;&nbsp;-&nbsp;&nbsp;
 							Authenticated: <span><% sysinfo("conn.wifi.2.authe"); %></span>
 						</td>
 					</tr>
-					<tr id="wifi5_clients_tr">
-						<th>Wireless clients (5 GHz)</th>
-						<td>
-							Associated: <span><% sysinfo("conn.wifi.5.assoc"); %></span>&nbsp;&nbsp;-&nbsp;&nbsp;
-							Authorized: <span><% sysinfo("conn.wifi.5.autho"); %></span>&nbsp;&nbsp;-&nbsp;&nbsp;
-							Authenticated: <span><% sysinfo("conn.wifi.5.authe"); %></span>
-						</td>
-					</tr>
 					<tr id="wifi5_clients_tr_qtn" style="display:none;">
 						<th>Wireless clients (5 GHz)</th>
 						<td>
-                                                        Associated: <span><% sysinfo("conn.wifi.5.assoc"); %></span>
+                                                        Associated: <span><% sysinfo("conn.wifi.1.assoc"); %></span>
 						</td>
 					</tr>
 				</table>

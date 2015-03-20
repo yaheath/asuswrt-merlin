@@ -16,9 +16,9 @@
 <script language="JavaScript" type="text/javascript" src="/state.js"></script>
 <script language="JavaScript" type="text/javascript" src="/general.js"></script>
 <script language="JavaScript" type="text/javascript" src="/popup.js"></script>
-<script language="JavaScript" type="text/javascript" src="/detect.js"></script>
 <script language="JavaScript" type="text/javascript" src="/form.js"></script>
 <script type="text/javascript" src="/jquery.js"></script>
+<script type="text/javascript" src="/validator.js"></script>
 <script type="text/javascript" src="/switcherplugin/jquery.iphone-switch.js"></script>
 <script>
 var $j = jQuery.noConflict();
@@ -49,7 +49,7 @@ var dualwan_mode = '<% nvram_get("wans_mode"); %>';
 var pptpd_connected_clients = [];
 var openvpnd_connected_clients = [];
 
-var openvpn_eas = '<% nvram_get("vpn_serverx_eas"); %>';
+var openvpn_eas = '<% nvram_get("vpn_serverx_start"); %>';
 var openvpn_enabled = (openvpn_eas.indexOf(''+(openvpn_unit)) >= 0) ? "1" : "0";
 
 function add_VPN_mode_Option(obj){
@@ -701,11 +701,11 @@ function enable_openvpn(state){
 			if (state == 1)
 				tmp_value += ""+i+",";
 		} else {
-			if (document.form.vpn_serverx_eas.value.indexOf(''+(i)) >= 0)
+			if (document.form.vpn_serverx_start.value.indexOf(''+(i)) >= 0)
 				tmp_value += ""+i+","
 		}
 	}
-	document.form.vpn_serverx_eas.value = tmp_value;
+	document.form.vpn_serverx_start.value = tmp_value;
 }
 
 </script>
@@ -746,7 +746,7 @@ function enable_openvpn(state){
 			<!-- input type="hidden" name="status_pptpd" value="<% nvram_dump("pptp_connected",""); %>" -->
 			<!-- openvpn -->
 			<input type="hidden" name="vpn_serverx_clientlist" value="<% nvram_get("vpn_serverx_clientlist"); %>">
-			<input type="hidden" name="vpn_serverx_eas" value="<% nvram_get("vpn_serverx_eas"); %>">
+			<input type="hidden" name="vpn_serverx_start" value="<% nvram_get("vpn_serverx_start"); %>">
 			<!-- input type="hidden" name="status_openvpnd" value="<% nvram_dump("openvpn_connected",""); %>" -->
 			<table width="98%" border="0" align="left" cellpadding="0" cellspacing="0">				
 				<tr>
@@ -902,10 +902,10 @@ function enable_openvpn(state){
 												<td width="15%" style="text-align:center;">-
 												</td>
 												<td width="35%">
-													<input type="text" class="input_25_table" maxlength="64" name="pptpd_clientlist_username" onKeyPress="return is_string(this, event)">
+													<input type="text" class="input_25_table" maxlength="64" name="pptpd_clientlist_username" onKeyPress="return validator.isString(this, event)">
 												</td>
 												<td width="35%">
-													<input type="text" class="input_25_table" maxlength="64" name="pptpd_clientlist_password" onKeyPress="return is_string(this, event)">
+													<input type="text" class="input_25_table" maxlength="64" name="pptpd_clientlist_password" onKeyPress="return validator.isString(this, event)">
 												</td>
 												<td width="15%">
 													<div><input type="button" class="add_btn" onClick="addRow_Group(64, 'pptpd');" value=""></div>
@@ -945,10 +945,10 @@ function enable_openvpn(state){
 												<td width="15%" style="text-align:center;">-
 												</td>
 												<td width="35%">
-													<input type="text" class="input_25_table" maxlength="64" name="vpn_server_clientlist_username" onKeyPress="return is_string(this, event)">
+													<input type="text" class="input_25_table" maxlength="64" name="vpn_server_clientlist_username" onKeyPress="return validator.isString(this, event)">
 												</td>
 												<td width="35%">
-													<input type="text" class="input_25_table" maxlength="64" name="vpn_server_clientlist_password" onKeyPress="return is_string(this, event)">
+													<input type="text" class="input_25_table" maxlength="64" name="vpn_server_clientlist_password" onKeyPress="return validator.isString(this, event)">
 												</td>
 												<td width="15%">
 													<div><input type="button" class="add_btn" onClick="addRow_Group(64, 'openvpnd');" value=""></div>

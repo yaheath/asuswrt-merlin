@@ -356,11 +356,11 @@ int ej_show_sysinfo(int eid, webs_t wp, int argc, char_t ** argv)
 #ifdef RTCONFIG_QTN
 unsigned int get_qtn_temperature(void)
 {
-        int temp_external, temp_internal;
+        int temp_external, temp_internal, temp_bb;
 	if (!rpc_qtn_ready())
 		return 0;
 
-        if (qcsapi_get_temperature_info(&temp_external, &temp_internal) >= 0)
+        if (qcsapi_get_temperature_info(&temp_external, &temp_internal, &temp_bb) >= 0)
 		return temp_internal / 1000000.0f;
 
 	return 0;
@@ -434,7 +434,7 @@ unsigned int get_phy_temperature(int radio)
 
 unsigned int get_wifi_clients(int radio, int querytype)
 {
-	char *name;
+	char *name, ifname[]="wlXXXXXXXXXX";
 	struct maclist *clientlist;
 	int max_sta_count, maclist_size;
 	int val, count = 0;
@@ -442,16 +442,12 @@ unsigned int get_wifi_clients(int radio, int querytype)
 	qcsapi_unsigned_int association_count = 0;
 #endif
 
-	if (radio == 2) {
-		name = "eth1";
-	} else if (radio == 5) {
-		name = "eth2";
-	} else {
-		return 0;
-	}
+	snprintf(ifname, sizeof(ifname), "wl%d_ifname", radio);
+	name = nvram_get(ifname);
+	if ((!name) || (!strlen(name))) return 0;
 
 #ifdef RTCONFIG_QTN
-	if (radio == 5) {
+	if (radio == 1) {
 
 		if (nvram_match("wl1_radio", "0"))
 			return -1;	// Best way I can find to check if it's disabled
@@ -460,7 +456,7 @@ unsigned int get_wifi_clients(int radio, int querytype)
 			return -1;
 
 		if (querytype == SI_WL_QUERY_ASSOC) {
-			if (qcsapi_wifi_get_count_associations("wifi0", &association_count) >= 0)
+			if (qcsapi_wifi_get_count_associations(name, &association_count) >= 0)
 				return association_count;
 		}
 		return -1;	// All other queries aren't supported by QTN

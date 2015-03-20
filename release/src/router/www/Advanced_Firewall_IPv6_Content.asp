@@ -1,4 +1,4 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <html xmlns:v>
 <head>
@@ -16,7 +16,7 @@
 <script language="JavaScript" type="text/javascript" src="/general.js"></script>
 <script language="JavaScript" type="text/javascript" src="/popup.js"></script>
 <script language="JavaScript" type="text/javascript" src="/client_function.js"></script>
-<script language="JavaScript" type="text/javascript" src="/detect.js"></script>
+<script language="JavaScript" type="text/javascript" src="/validator.js"></script>
 <script>
 var wItem = new Array(new Array("", "", "TCP"),
 	new Array("FTP", "20,21", "TCP"),
@@ -28,12 +28,6 @@ var wItem = new Array(new Array("", "", "TCP"),
 	new Array("POP3", "110", "TCP"),
 	new Array("SNMP", "161", "UDP"),
 	new Array("SNMP TRAP", "162", "UDP"));
-
-<% login_state_hook(); %>
-
-wan_route_x = '<% nvram_get("wan_route_x"); %>';
-wan_nat_x = '<% nvram_get("wan_nat_x"); %>';
-wan_proto = '<% nvram_get("wan_proto"); %>';
 
 var overlib_str0 = new Array();
 var overlib_str1 = new Array();
@@ -143,13 +137,6 @@ function validForm(){
 		return false;
 	}
 
-	if(document.form.ipv6_fw_lipaddr_x_0.value==""){
-		alert("<#JS_fieldblank#>");
-		document.form.ipv6_fw_lipaddr_x_0.focus();
-		document.form.ipv6_fw_lipaddr_x_0.select();		
-		return false;
-	}
-
 	if(document.form.ipv6_fw_port_x_0.value==""){
 		alert("<#JS_fieldblank#>");
 		document.form.ipv6_fw_port_x_0.focus();
@@ -158,8 +145,8 @@ function validForm(){
 	}
 
 	if(!validate_multi_range(document.form.ipv6_fw_port_x_0, 1, 65535)
-		|| !ipv6_valid(document.form.ipv6_fw_lipaddr_x_0, 0)
-		|| (document.form.ipv6_fw_ripaddr_x_0.value != "" && !ipv6_valid(document.form.ipv6_fw_ripaddr_x_0, 1))) {
+		|| ((document.form.ipv6_fw_lipaddr_x_0.value != "") && !ipv6_valid(document.form.ipv6_fw_lipaddr_x_0, 0))
+		|| ((document.form.ipv6_fw_ripaddr_x_0.value != "") && !ipv6_valid(document.form.ipv6_fw_ripaddr_x_0, 1))) {
 		return false;
 	}
 
@@ -191,7 +178,7 @@ function addRow_Group(upper){
 function validate_multi_range(val, mini, maxi){
 	var rangere=new RegExp("^([0-9]{1,5})\:([0-9]{1,5})$", "gi");
 	if(rangere.test(val)){
-		if(!validate_each_port(document.form.ipv6_fw_port_x_0, RegExp.$1, mini, maxi) || !validate_each_port(document.form.ipv6_fw_port_x_0, RegExp.$2, mini, maxi)){
+		if(!validator.eachPort(document.form.ipv6_fw_port_x_0, RegExp.$1, mini, maxi) || !validator.eachPort(document.form.ipv6_fw_port_x_0, RegExp.$2, mini, maxi)){
 				return false;								
 		}else if(parseInt(RegExp.$1) >= parseInt(RegExp.$2)){
 				alert("<#JS_validport#>");	
@@ -447,7 +434,7 @@ function changeBgColor(obj, num){
 		<table width="100%" border="1" align="center" cellpadding="4" cellspacing="0" class="FormTable_table">
 			<thead>
 			<tr>
-              		<td colspan="7">Inbound Firewall Rules&nbsp;(<#List_limit#>&nbsp;128)</td>
+              		<td colspan="7"><#FirewallIPv6_list#>&nbsp;(<#List_limit#>&nbsp;128)</td>
             	</tr>
  		  	</thead>
  		  	
@@ -471,7 +458,7 @@ function changeBgColor(obj, num){
 					<input type="text" maxlength="45" class="input_18_table" name="ipv6_fw_lipaddr_x_0" align="left" style="float:left;" autocomplete="off">
                                 </td>
 				<td width="14%">
-					<input type="text" maxlength="" class="input_12_table" name="ipv6_fw_port_x_0" onkeypress="return is_portrange(this, event)"/>
+					<input type="text" maxlength="" class="input_12_table" name="ipv6_fw_port_x_0" onkeypress="return validator.isPortRange(this, event)"/>
 				</td>
 				<td width="11%">
 					<select name="ipv6_fw_proto_x_0" class="input_option">

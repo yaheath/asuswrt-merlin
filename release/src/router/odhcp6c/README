@@ -4,7 +4,7 @@ odhcp6c - Embedded DHCPv6 Client
 ** Abstract **
 
 odhcp6c is a minimal DHCPv6 and RA-client for use in embedded Linux systems
-especially routers. It compiles to only about 30 KB (-Os -s).
+especially routers. It compiles to only about 35 KB (-Os -s).
 
 
 ** Features **
@@ -28,9 +28,9 @@ especially routers. It compiles to only about 30 KB (-Os -s).
 	g) Information-Refresh Options
 	h) Configurable SOL_MAX_RT
 	i) DS-Lite AFTR-Name Option
-	j) Prefix Class (experimental)
-	k) CER-ID (experimental)
-	l) Softwire address and port mapped clients (experimental)
+	j) Softwire address and port mapped clients (MAP, LW4over6)
+	k) Prefix Class (experimental)
+	l) CER-ID (experimental)
 
 4. Support for requesting and parsing Router Advertisements
 	a) parsing of prefixes, routes, MTU and RDNSS options

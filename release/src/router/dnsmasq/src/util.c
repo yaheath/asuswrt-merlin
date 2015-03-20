@@ -81,6 +81,18 @@ unsigned short rand16(void)
   return (unsigned short) out[--outleft];
 }
 
+u32 rand32(void)
+{
+ if (!outleft) 
+    {
+      if (!++in[0]) if (!++in[1]) if (!++in[2]) ++in[3];
+      surf();
+      outleft = 8;
+    }
+  
+  return out[--outleft]; 
+}
+
 u64 rand64(void)
 {
   static int outleft = 0;
@@ -268,6 +280,7 @@ int sockaddr_isequal(union mysockaddr *s1, union mysockaddr *s2)
 #ifdef HAVE_IPV6      
       if (s1->sa.sa_family == AF_INET6 &&
 	  s1->in6.sin6_port == s2->in6.sin6_port &&
+	  s1->in6.sin6_scope_id == s2->in6.sin6_scope_id &&
 	  IN6_ARE_ADDR_EQUAL(&s1->in6.sin6_addr, &s2->in6.sin6_addr))
 	return 1;
 #endif
@@ -323,6 +336,19 @@ time_t dnsmasq_time(void)
 #else
   return time(NULL);
 #endif
+}
+
+int netmask_length(struct in_addr mask)
+{
+  int zero_count = 0;
+
+  while (0x0 == (mask.s_addr & 0x1) && zero_count < 32) 
+    {
+      mask.s_addr >>= 1;
+      zero_count++;
+    }
+  
+  return 32 - zero_count;
 }
 
 int is_same_net(struct in_addr a, struct in_addr b, struct in_addr mask)
@@ -551,18 +577,28 @@ void bump_maxfd(int fd, int *max)
 
 int retry_send(void)
 {
-   struct timespec waiter;
+  /* Linux kernels can return EAGAIN in perpetuity when calling
+     sendmsg() and the relevant interface has gone. Here we loop
+     retrying in EAGAIN for 1 second max, to avoid this hanging 
+     dnsmasq. */
+
+  static int retries = 0;
+  struct timespec waiter;
+
    if (errno == EAGAIN || errno == EWOULDBLOCK)
      {
        waiter.tv_sec = 0;
        waiter.tv_nsec = 10000;
        nanosleep(&waiter, NULL);
-       return 1;
+       if (retries++ < 1000)
+	 return 1;
      }
+
+   retries = 0;
    
    if (errno == EINTR)
      return 1;
-
+   
    return 0;
 }
 

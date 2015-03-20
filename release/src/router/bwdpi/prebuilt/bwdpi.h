@@ -26,15 +26,29 @@
 
 #include <httpd.h>
 
-#define DATABASE		"/tmp/bwdpi/rule.trf"
-#define QOS_CONF		"/tmp/bwdpi/qosd.conf"
-#define WRS_CONF		"/tmp/bwdpi/wred.conf"
-#define APP_SET_CONF		"/tmp/bwdpi/wrs_app.conf"
-#define APP_CLEAN_CONF		"/tmp/bwdpi/wrs_app_clean.conf"
-#define VP_CONF			"/tmp/bwdpi/vp.conf"
-#define USR_BWDPI		"/usr/bwdpi/"
-#define TMP_BWDPI		"/tmp/bwdpi/"
-#define TMP_BWDPI_DC		"/tmp/bwdpi/dc/"
+// command
+#define WRED		nvram_get_int("bwdpi_debug_path") ? "/jffs/TM/wred" : "wred"
+#define AGENT		nvram_get_int("bwdpi_debug_path") ? "/jffs/TM/bwdpi-rule-agent" : "bwdpi-rule-agent"
+#define QOSD		nvram_get_int("bwdpi_debug_path") ? "/jffs/TM/qosd" : "qosd"
+#define DATACOLLD	nvram_get_int("bwdpi_debug_path") ? "/jffs/TM/dc_monitor.sh" : "dc_monitor.sh"
+#define WRED_SET	nvram_get_int("bwdpi_debug_path") ? "/jffs/TM/wred_set_conf" : "wred_set_conf"
+
+// conf / folder path
+#define DATABASE		nvram_get_int("bwdpi_debug_path") ? "/jffs/TM/rule.trf" : "/tmp/bwdpi/rule.trf"
+#define QOS_CONF		nvram_get_int("bwdpi_debug_path") ? "/jffs/TM/qosd.conf" : "/tmp/bwdpi/qosd.conf"
+#define WRS_CONF		nvram_get_int("bwdpi_debug_path") ? "/jffs/TM/wred.conf" : "/tmp/bwdpi/wred.conf"
+#define APP_SET_CONF		nvram_get_int("bwdpi_debug_path") ? "/jffs/TM/wrs_app.conf" : "/tmp/bwdpi/wrs_app.conf"
+#define APP_CLEAN_CONF		nvram_get_int("bwdpi_debug_path") ? "/jffs/TM/wrs_app_clean.conf" : "/tmp/bwdpi/wrs_app_clean.conf"
+#define TMP_BWDPI		nvram_get_int("bwdpi_debug_path") ? "/jffs/TM/" : "/tmp/bwdpi/"
+#define TMP_BWDPI_DC		nvram_get_int("bwdpi_debug_path") ? "/jffs/TM/dc/" : "/tmp/bwdpi/dc/"
+#define BWDPI_WAN		nvram_get_int("bwdpi_debug_path") ? "/jffs/TM/dev_wan" : "/tmp/bwdpi/dev_wan"
+
+// module
+#define IDPKO	nvram_get_int("bwdpi_debug_path") ? "/jffs/TM/IDP.ko" : "/usr/bwdpi/IDP.ko"
+#define BWKO	nvram_get_int("bwdpi_debug_path") ? "/jffs/TM/bw_forward.ko" : "/usr/bwdpi/bw_forward.ko"
+#define CTKO	nvram_get_int("bwdpi_debug_path") ? "/jffs/TM/ct_notification.ko" : "/usr/bwdpi/ct_notification.ko"
+
+// log / tmp file
 #define TRAFFIC_PATH		"/tmp/traffic.log"
 #define WRS_FULL_LOG		"/tmp/wrs_full.txt"
 #define VP_FULL_LOG		"/tmp/vp_full.txt"
@@ -103,8 +117,8 @@ struct mail_info{
 	(uint8_t) o[12], (uint8_t) o[13], (uint8_t) o[14], (uint8_t) o[15]
 
 //iqos.c
-extern char *dev_wan;
 extern char *dev_lan;
+extern void check_qosd_wan_setting(char *dev_wan);
 extern void setup_qos_conf();
 extern void stop_tm_qos();
 extern void start_tm_qos();
@@ -121,7 +135,6 @@ extern void start_wrs();
 extern int wrs_main(char *cmd);
 extern int set_cc(char *cmd);
 extern int set_vp(char *cmd);
-extern void setup_cc_conf();
 extern void setup_vp_conf();
 void free_id_list(cid_s **target_list);
 cid_s *get_id_list(cid_s **target_list, char *target_string);
@@ -152,15 +165,19 @@ extern int get_anomaly_main(char *cmd);
 extern int get_app_patrol_main();
 
 //dpi.c
-extern void stop_dpi_engine_service();
+extern int check_bwdpi_nvram_setting();
+extern void stop_dpi_engine_service(int forced);
 extern void run_dpi_engine_service();
 extern void start_dpi_engine_service();
 extern void save_version_of_bwdpi();
+extern void stop_bwdpi_monitor_service();
+extern void start_bwdpi_monitor_service();
+extern void setup_dev_wan();
 
 //web_history.c
-extern int web_history_main(char *MAC);
-extern void get_web_stat(char *MAC);
-extern void get_web_hook(char *MAC, int *retval, webs_t wp);
+extern int web_history_main(char *MAC, char *page);
+extern void get_web_stat(char *MAC, char *page);
+extern void get_web_hook(char *MAC, char *page, int *retval, webs_t wp);
 
 //wrs_app.c
 extern void setup_wrs_app_conf();

@@ -50,6 +50,10 @@ ifeq ($(RTN65U), y)
 	CFLAGS += -DRTN56U
 endif
 
+ifeq ($(or $(RTN66U),$(RTAC66U)),y)
+	CFLAGS += -DRTN66U
+endif
+
 INSTALLPREFIX ?= $(DESTDIR)/usr
 SBININSTALLDIR = $(INSTALLPREFIX)/sbin
 ETCINSTALLDIR = $(DESTDIR)/etc
@@ -60,6 +64,7 @@ BASEOBJS = minidlna.o upnphttp.o upnpdescgen.o upnpsoap.o \
 	   options.o minissdp.o uuid.o upnpevents.o \
 	   sql.o utils.o metadata.o scanner.o inotify.o \
 	   tivo_utils.o tivo_beacon.o tivo_commands.o \
+	   containers.o \
 	   tagutils/tagutils.o \
 	   playlist.o image_utils.o albumart.o log.o clients.o
 
@@ -69,7 +74,7 @@ ALLOBJS = $(BASEOBJS) $(LNXOBJS)
 #STATIC_LINKING: LIBS = -lvorbis -logg -lm -lsqlite3 -lpthread -lexif -ljpeg -lFLAC -lm -lid3tag -lz -lavformat -lavutil -lavcodec -lm
 
 ifeq ($(STATIC),1)
-LIBS = -lpthread -lm \
+LIBS = -lpthread -ldl -lm \
 	$(TOP)/libvorbis/lib/.libs/libvorbis.a \
 	$(TOP)/libogg/src/.libs/libogg.a \
 	$(TOP)/sqlite/.libs/libsqlite3.a \
@@ -82,7 +87,7 @@ LIBS = -lpthread -lm \
 	$(TOP)/ffmpeg/libavcodec/libavcodec.a \
 	$(TOP)/ffmpeg/libavutil/libavutil.a
 else
-LIBS += -lpthread -lm -lvorbis -logg -lsqlite3 -lexif -ljpeg -lFLAC -lid3tag -lz -lavformat -lavcodec -lavutil
+LIBS += -lpthread -lm -ldl -lvorbis -logg -lsqlite3 -lexif -ljpeg -lFLAC -lid3tag -lz -lavformat -lavcodec -lavutil
 endif
 
 TESTUPNPDESCGENOBJS = testupnpdescgen.o upnpdescgen.o
@@ -154,6 +159,7 @@ testupnpdescgen.o: config.h upnpdescgen.h
 scanner.o: upnpglobalvars.h metadata.h utils.h sql.h scanner.h log.h playlist.h scanner_sqlite.h
 metadata.o: upnpglobalvars.h metadata.h albumart.h utils.h sql.h log.h
 albumart.o: upnpglobalvars.h albumart.h utils.h image_utils.h sql.h log.h
+containers.o: containers.h
 tagutils/tagutils.o: tagutils/tagutils-asf.c tagutils/tagutils-flc.c tagutils/tagutils-plist.c
 tagutils/tagutils.o: tagutils/tagutils-aac.c tagutils/tagutils-asf.h tagutils/tagutils-flc.h tagutils/tagutils-mp3.c tagutils/tagutils-wav.c
 tagutils/tagutils.o: tagutils/tagutils-ogg.c tagutils/tagutils-aac.h tagutils/tagutils.h tagutils/tagutils-mp3.h tagutils/tagutils-ogg.h log.h

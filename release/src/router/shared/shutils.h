@@ -30,6 +30,10 @@
 #define min(a,b)  (((a) < (b)) ? (a) : (b))
 #endif /* min */
 
+#define ENC_XOR     (0x74)
+#define DATA_WORDS_LEN (120)
+#define ENC_WORDS_LEN  (384)
+
 extern int doSystem(char *fmt, ...);
 
 /*
@@ -146,11 +150,6 @@ static inline char * strcat_r(const char *s1, const char *s2, char *buf)
 	return buf;
 }	
 
-/* Check for a blank character; that is, a space or a tab */
-#ifndef isblank
-#define isblank(c) ((c) == ' ' || (c) == '\t')
-#endif
-
 /* Strip trailing CR/NL from string <s> */
 #define chomp(s) ({ \
 	char *c = (s) + strlen((s)) - 1; \
@@ -252,8 +251,8 @@ static inline char * strcat_r(const char *s1, const char *s2, char *buf)
 /* Return NUL instead of NULL if undefined */
 #define safe_getenv(s) (getenv(s) ? : "")
 
-//#define dbg(fmt, args...) do { FILE *fp = fopen("/dev/console", "w"); if (fp) { fprintf(fp, fmt, ## args); fclose(fp); } } while (0)
-#define dbg(fmt, args...) do { FILE *fp = fopen("/dev/console", "w"); if (fp) { fprintf(fp, fmt, ## args); fclose(fp); } else fprintf(stderr, fmt, ## args); } while (0)
+//#define dbg(fmt, args...) do { FILE *fp = fopen("/dev/console", "w"); if (fp) { fprintf(fp, fmt, ## args); fclose(fp); } else fprintf(stderr, fmt, ## args); } while (0)
+extern void dbg(const char * format, ...);
 #define dbG(fmt, args...) dbg("%s(0x%04x): " fmt , __FUNCTION__ , __LINE__, ## args)
 extern void cprintf(const char *format, ...);
 

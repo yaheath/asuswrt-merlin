@@ -58,15 +58,31 @@ static char if_name[IF_NAMESIZE] = {0};
 static volatile int rs_attempt = 0;
 static struct in6_addr lladdr = IN6ADDR_ANY_INIT;
 
+struct {
+	struct icmp6_hdr hdr;
+	struct icmpv6_opt lladdr;
+} rs = {
+	.hdr = {ND_ROUTER_SOLICIT, 0, 0, {{0}}},
+	.lladdr = {ND_OPT_SOURCE_LINKADDR, 1, {0}},
+};
+
+
 static void ra_send_rs(int signal __attribute__((unused)));
 
 int ra_init(const char *ifname, const struct in6_addr *ifid)
 {
 	const pid_t ourpid = getpid();
+#ifdef SOCK_CLOEXEC
+	sock = socket(AF_INET6, SOCK_RAW | SOCK_CLOEXEC, IPPROTO_ICMPV6);
+#else
 	sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
+	if (sock >= 0 && fcntl(sock, F_SETFD, FD_CLOEXEC) < 0) {
+		close(sock);
+		sock = -1;
+	}
+#endif
 	if (sock < 0)
 		return -1;
-	fcntl(sock, F_SETFD, FD_CLOEXEC);
 
 	if_index = if_nametoindex(ifname);
 	if (!if_index)
@@ -75,10 +91,17 @@ int ra_init(const char *ifname, const struct in6_addr *ifid)
 	strncpy(if_name, ifname, sizeof(if_name) - 1);
 	lladdr = *ifid;
 
+#ifdef SOCK_CLOEXEC
+	rtnl = socket(AF_NETLINK, SOCK_DGRAM | SOCK_CLOEXEC, NETLINK_ROUTE);
+#else
 	rtnl = socket(AF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
+	if (rtnl >= 0 && fcntl(rtnl, F_SETFD, FD_CLOEXEC) < 0) {
+		close(rtnl);
+		rtnl = -1;
+	}
+#endif
 	if (rtnl < 0)
 		return -1;
-	fcntl(rtnl, F_SETFD, FD_CLOEXEC);
 
 	struct sockaddr_nl rtnl_kernel = { .nl_family = AF_NETLINK };
 	if (connect(rtnl, (const struct sockaddr*)&rtnl_kernel, sizeof(rtnl_kernel)) < 0)
@@ -97,6 +120,7 @@ int ra_init(const char *ifname, const struct in6_addr *ifid)
 		.ifi = {.ifi_index = if_index}
 	};
 	send(rtnl, &req, sizeof(req), 0);
+	ra_link_up();
 
 	// Filter ICMPv6 package types
 	struct icmp6_filter filt;
@@ -137,9 +161,16 @@ int ra_init(const char *ifname, const struct in6_addr *ifid)
 
 static void ra_send_rs(int signal __attribute__((unused)))
 {
-	const struct icmp6_hdr rs = {ND_ROUTER_SOLICIT, 0, 0, {{0}}};
 	const struct sockaddr_in6 dest = {AF_INET6, 0, 0, ALL_IPV6_ROUTERS, if_index};
-	sendto(sock, &rs, sizeof(rs), MSG_DONTWAIT, (struct sockaddr*)&dest, sizeof(dest));
+	const struct icmpv6_opt llnull = {ND_OPT_SOURCE_LINKADDR, 1, {0}};
+	size_t len;
+
+	if ((rs_attempt % 2 == 0) && memcmp(&rs.lladdr, &llnull, sizeof(llnull)))
+		len = sizeof(rs);
+	else
+		len = sizeof(struct icmp6_hdr);
+
+	sendto(sock, &rs, len, MSG_DONTWAIT, (struct sockaddr*)&dest, sizeof(dest));
 
 	if (++rs_attempt <= 3)
 		alarm(4);
@@ -184,6 +215,14 @@ bool ra_link_up(void)
 				resp.msg.ifi_index != if_index)
 			continue;
 
+		ssize_t alen = NLMSG_PAYLOAD(&resp.hdr, sizeof(resp.msg));
+		for (struct rtattr *rta = (struct rtattr*)(resp.pad);
+				RTA_OK(rta, alen); rta = RTA_NEXT(rta, alen)) {
+			if (rta->rta_type == IFLA_ADDRESS &&
+					RTA_PAYLOAD(rta) >= sizeof(rs.lladdr.data))
+				memcpy(rs.lladdr.data, RTA_DATA(rta), sizeof(rs.lladdr.data));
+		}
+
 		bool hascarrier = resp.msg.ifi_flags & IFF_LOWER_UP;
 		if (!firstcall && nocarrier != !hascarrier)
 			ret = true;
@@ -193,7 +232,7 @@ bool ra_link_up(void)
 	} while (read > 0);
 
 	if (ret) {
-		syslog(loglevel, "carrier => %i event on %s", (int)!nocarrier, if_name);
+		syslog(LOG_NOTICE, "carrier => %i event on %s", (int)!nocarrier, if_name);
 
 		rs_attempt = 0;
 		ra_send_rs(SIGALRM);
@@ -309,7 +348,7 @@ bool ra_process(void)
 			entry.priority = pref_to_priority(0);
 		entry.valid = router_valid;
 		entry.preferred = entry.valid;
-		changed |= odhcp6c_update_entry(STATE_RA_ROUTE, &entry);
+		changed |= odhcp6c_update_entry(STATE_RA_ROUTE, &entry, 0, true);
 
 		// Parse hoplimit
 		if (adv->nd_ra_curhoplimit)
@@ -347,7 +386,7 @@ bool ra_process(void)
 					continue;
 
 				if (entry.priority > 0)
-					changed |= odhcp6c_update_entry(STATE_RA_ROUTE, &entry);
+					changed |= odhcp6c_update_entry(STATE_RA_ROUTE, &entry, 0, true);
 			} else if (opt->type == ND_OPT_PREFIX_INFORMATION && opt->len == 4) {
 				struct nd_opt_prefix_info *pinfo = (struct nd_opt_prefix_info*)opt;
 				entry.router = any;
@@ -364,7 +403,7 @@ bool ra_process(void)
 					continue;
 
 				if (pinfo->nd_opt_pi_flags_reserved & ND_OPT_PI_FLAG_ONLINK)
-					changed |= odhcp6c_update_entry_safe(STATE_RA_ROUTE, &entry, 7200);
+					changed |= odhcp6c_update_entry(STATE_RA_ROUTE, &entry, 7200, true);
 
 				if (!(pinfo->nd_opt_pi_flags_reserved & ND_OPT_PI_FLAG_AUTO) ||
 						pinfo->nd_opt_pi_prefix_len != 64)
@@ -373,7 +412,7 @@ bool ra_process(void)
 				entry.target.s6_addr32[2] = lladdr.s6_addr32[2];
 				entry.target.s6_addr32[3] = lladdr.s6_addr32[3];
 
-				changed |= odhcp6c_update_entry_safe(STATE_RA_PREFIX, &entry, 7200);
+				changed |= odhcp6c_update_entry(STATE_RA_PREFIX, &entry, 7200, true);
 			} else if (opt->type == ND_OPT_RECURSIVE_DNS && opt->len > 2) {
 				entry.router = from.sin6_addr;
 				entry.priority = 0;
@@ -385,7 +424,7 @@ bool ra_process(void)
 				for (ssize_t i = 0; i < (opt->len - 1) / 2; ++i) {
 					memcpy(&entry.target, &opt->data[6 + i * sizeof(entry.target)],
 							sizeof(entry.target));
-					changed |= odhcp6c_update_entry(STATE_RA_DNS, &entry);
+					changed |= odhcp6c_update_entry(STATE_RA_DNS, &entry, 0, true);
 				}
 			}
 		}

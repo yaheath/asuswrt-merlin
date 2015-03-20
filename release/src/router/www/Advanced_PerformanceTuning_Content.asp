@@ -16,12 +16,9 @@
 <script language="JavaScript" type="text/javascript" src="/help.js"></script>
 <script language="JavaScript" type="text/javascript" src="/general.js"></script>
 <script language="JavaScript" type="text/javascript" src="/popup.js"></script>
-<script language="JavaScript" type="text/javascript" src="/detect.js"></script>
+<script language="JavaScript" type="text/javascript" src="/validator.js"></script>
 <script type="text/javascript" src="/jquery.js"></script>
-<script type='text/javascript'>
-wan_route_x = '<% nvram_get("wan_route_x"); %>';
-wan_nat_x = '<% nvram_get("wan_nat_x"); %>';
-wan_proto = '<% nvram_get("wan_proto"); %>';
+<script type='text/javascript'>var fanctrl_info = [<% get_fanctrl_info(); %>];
 curr_coreTmp_2 = "<% sysinfo("temperature.2"); %>".replace("&deg;C", "");
 curr_coreTmp_5 = "<% sysinfo("temperature.5"); %>".replace("&deg;C", ""); 
 curr_coreTmp_cpu = "<% get_cpu_temperature(); %>";
@@ -37,7 +34,7 @@ var $j = jQuery.noConflict();
 function initial(){
 	var code1, code2;
 	show_menu();
-	document.form.fanctrl_fullspeed_temp_unit.selectedIndex = getCookie("CoreTmpUnit");
+	document.form.fanctrl_fullspeed_temp_unit.selectedIndex = cookie.get("CoreTmpUnit");
 	update_coretmp();
 
 	code1 = '<br>Legend: <span style="color: #FF9900;">2.4 GHz</span> - <span style="color: #33CCFF;">5 GHz</span>';
@@ -50,7 +47,7 @@ function initial(){
 
 	$("legend").innerHTML = code1 + code2;
 
-	if(based_modelid == "RT-AC68U" || based_modelid == "TM-AC1900" || based_modelid == "RT-AC68U_V2" || based_modelid == "RT-AC69U" || based_modelid == "DSL-AC68U"){
+	if(based_modelid == "RT-AC68U" || based_modelid == "RT-AC68U_V2" || based_modelid == "RT-AC69U" || based_modelid == "DSL-AC68U"){
 		if ('<% sysinfo("cfe_version"); %>' >= "1.0.1.6") {
 			$("turbocompat").style.display = "";
 		}
@@ -121,26 +118,8 @@ function applyRule(){
 }
 
 function changeTempUnit(num){
-	setCookie(num);
+	cookie.set("CoreTmpUnit", num, 365);
 	refreshpage();
-}
-
-function setCookie(num){
-	document.cookie = "CoreTmpUnit=" + num;
-}
-
-function getCookie(c_name)
-{
-	if (document.cookie.length > 0){ 
-		c_start=document.cookie.indexOf(c_name + "=")
-		if (c_start!=-1){ 
-			c_start=c_start + c_name.length+1 
-			c_end=document.cookie.indexOf(";",c_start)
-			if (c_end==-1) c_end=document.cookie.length
-			return unescape(document.cookie.substring(c_start,c_end))
-		} 
-	}
-	return null
 }
 </script>
 </head>

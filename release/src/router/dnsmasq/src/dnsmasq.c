@@ -80,22 +80,21 @@ int main (int argc, char **argv)
   sigaction(SIGPIPE, &sigact, NULL);
 
   umask(022); /* known umask, create leases and pid files as 0644 */
-
+ 
+  rand_init(); /* Must precede read_opts() */
+  
   read_opts(argc, argv, compile_opts);
  
   if (daemon->edns_pktsz < PACKETSZ)
     daemon->edns_pktsz = PACKETSZ;
-#ifdef HAVE_DNSSEC
-  /* Enforce min packet big enough for DNSSEC */
-  if (option_bool(OPT_DNSSEC_VALID) && daemon->edns_pktsz < EDNS_PKTSZ)
-    daemon->edns_pktsz = EDNS_PKTSZ;
-#endif
 
   daemon->packet_buff_sz = daemon->edns_pktsz > DNSMASQ_PACKETSZ ? 
     daemon->edns_pktsz : DNSMASQ_PACKETSZ;
   daemon->packet = safe_malloc(daemon->packet_buff_sz);
   
   daemon->addrbuff = safe_malloc(ADDRSTRLEN);
+  if (option_bool(OPT_EXTRALOG))
+    daemon->addrbuff2 = safe_malloc(ADDRSTRLEN);
   
 #ifdef HAVE_DNSSEC
   if (option_bool(OPT_DNSSEC_VALID))
@@ -144,6 +143,11 @@ int main (int argc, char **argv)
       reset_option_bool(OPT_CLEVERBIND);
     }
 #endif
+
+#ifndef HAVE_INOTIFY
+  if (daemon->inotify_hosts)
+    die(_("dhcp-hostsdir not supported on this platform"), NULL, EC_BADCONF);
+#endif
   
   if (option_bool(OPT_DNSSEC_VALID))
     {
@@ -186,7 +190,10 @@ int main (int argc, char **argv)
     die(_("authoritative DNS not available: set HAVE_AUTH in src/config.h"), NULL, EC_BADCONF);
 #endif
 
-  rand_init();
+#ifndef HAVE_LOOP
+  if (option_bool(OPT_LOOP_DETECT))
+    die(_("Loop detection not available: set HAVE_LOOP in src/config.h"), NULL, EC_BADCONF);
+#endif
   
   now = dnsmasq_time();
 
@@ -310,11 +317,20 @@ int main (int argc, char **argv)
   if (daemon->port != 0)
     {
       cache_init();
+
 #ifdef HAVE_DNSSEC
       blockdata_init();
 #endif
     }
-    
+
+#ifdef HAVE_INOTIFY
+  if ((!option_bool(OPT_NO_POLL) && daemon->port != 0) ||
+      daemon->dhcp || daemon->doing_dhcp6)
+    inotify_dnsmasq_init();
+  else
+    daemon->inotifyfd = -1;
+#endif
+       
   if (option_bool(OPT_DBUS))
 #ifdef HAVE_DBUS
     {
@@ -737,7 +753,7 @@ int main (int argc, char **argv)
 #endif
 
 #ifdef HAVE_TFTP
-	if (option_bool(OPT_TFTP))
+  if (option_bool(OPT_TFTP))
     {
 #ifdef FD_SETSIZE
       if (FD_SETSIZE < (unsigned)max_fd)
@@ -787,6 +803,11 @@ int main (int argc, char **argv)
     check_servers();
   
   pid = getpid();
+  
+#ifdef HAVE_INOTIFY
+  /* Using inotify, have to select a resolv file at startup */
+  poll_resolv(1, 0, now);
+#endif
   
   while (1)
     {
@@ -853,6 +874,14 @@ int main (int argc, char **argv)
 	  bump_maxfd(daemon->icmp6fd, &maxfd); 
 	}
 #endif
+    
+#ifdef HAVE_INOTIFY
+      if (daemon->inotifyfd != -1)
+	{
+	  FD_SET(daemon->inotifyfd, &rset);
+	  bump_maxfd(daemon->inotifyfd, &maxfd);
+	}
+#endif
 
 #if defined(HAVE_LINUX_NETWORK)
       FD_SET(daemon->netlinkfd, &rset);
@@ -861,7 +890,7 @@ int main (int argc, char **argv)
       FD_SET(daemon->routefd, &rset);
       bump_maxfd(daemon->routefd, &maxfd);
 #endif
-
+      
       FD_SET(piperead, &rset);
       bump_maxfd(piperead, &maxfd);
 
@@ -924,6 +953,13 @@ int main (int argc, char **argv)
 	route_sock();
 #endif
 
+#ifdef HAVE_INOTIFY
+      if  (daemon->inotifyfd != -1 && FD_ISSET(daemon->inotifyfd, &rset) && inotify_check(now))
+	{
+	  if (daemon->port != 0 && !option_bool(OPT_NO_POLL))
+	    poll_resolv(1, 1, now);
+	} 	  
+#else
       /* Check for changes to resolv files once per second max. */
       /* Don't go silent for long periods if the clock goes backwards. */
       if (daemon->last_resolv == 0 || 
@@ -936,7 +972,8 @@ int main (int argc, char **argv)
 	  poll_resolv(0, daemon->last_resolv != 0, now); 	  
 	  daemon->last_resolv = now;
 	}
-      
+#endif
+
       if (FD_ISSET(piperead, &rset))
 	async_event(piperead, now);
       
@@ -1370,6 +1407,9 @@ void clear_cache_and_reload(time_t now)
       if (option_bool(OPT_ETHERS))
 	dhcp_read_ethers();
       reread_dhcp();
+#ifdef HAVE_INOTIFY
+      set_dhcp_inotify();
+#endif
       dhcp_update_configs(daemon->dhcp_conf);
       lease_update_from_configs(); 
       lease_update_file(now); 
@@ -1574,6 +1614,9 @@ static void check_dns_listeners(fd_set *set, time_t now)
 		      }
 		}
 	      close(confd);
+
+	      /* The child can use up to TCP_MAX_QUERIES ids, so skip that many. */
+	      daemon->log_id += TCP_MAX_QUERIES;
 	    }
 #endif
 	  else

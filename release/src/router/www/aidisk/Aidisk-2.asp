@@ -10,23 +10,23 @@
 <link rel="stylesheet" type="text/css" href="aidisk.css">
 <link rel="stylesheet" type="text/css" href="/form_style.css">
 <script type="text/javascript" src="/state.js"></script>
+<script type="text/javascript" src="/validator.js"></script>
 <script>
 var next_page = "";
 var dummyShareway = 0;
 
 function initial(){
-	//parent.show_help_iframe(2);
+	
 	parent.hideLoading();
 	
 	parent.restore_help_td();	
-	//parent.openHint(15, 2);
+	
 	
 	parent.$("dummyShareway").value = "<% nvram_get("dummyShareway"); %>";
 	if(parent.$("dummyShareway").value == "")
-		parent.$("dummyShareway").value = 0;
+			parent.$("dummyShareway").value = 0;
 
-	//showTextinWizard(parent.$("dummyShareway").value);
-	showTextinWizard(1);
+	showTextinWizard(2);
 }
 
 var lan_hwaddr_array = '<% nvram_get("lan_hwaddr"); %>'.split(':');
@@ -47,8 +47,8 @@ function showTextinWizard(flag){
 	else if(dummyShareway == 1){
 		parent.$("dummyShareway").value = dummyShareway;
 		
-		document.getElementsByName('dummyoption')[0].focus();
-		document.getElementsByName('dummyoption')[0].checked = true;
+		document.getElementsByName('dummyoption')[1].focus();
+		document.getElementsByName('dummyoption')[1].checked = true;
 		
 		showtext($("user1"), '<% nvram_get("http_username"); %>');
 		
@@ -63,8 +63,8 @@ function showTextinWizard(flag){
 	else if(dummyShareway == 2){
 		parent.$("dummyShareway").value = dummyShareway;
 		
-		document.getElementsByName('dummyoption')[1].focus();
-		document.getElementsByName('dummyoption')[1].checked = true;
+		document.getElementsByName('dummyoption')[0].focus();
+		document.getElementsByName('dummyoption')[0].checked = true;
 		
 		showtext($("user1"), '<% nvram_get("http_username"); %>');
 		
@@ -148,7 +148,7 @@ function checkPasswdValid(obj){
 		return false;
 	}	
 	
-	if(!validate_string(obj)){
+	if(!validator.string(obj)){
 			obj.focus();
 			obj.select();
 			return false;	
@@ -204,11 +204,11 @@ function checkPasswdValid(obj){
     <tr>
       <td valign="top">
 						<div style="margin-left:20px;">
-            <br/><p><input type="radio" id="d2" name="dummyoption" value="1" width="10" onclick="showTextinWizard(this.value);"/> 
-            				<label for="d2"><#Step2_method2#></label>
-            		</p>
             <br/><p><input type="radio" id="d3" name="dummyoption" value="2" width="10" onclick="showTextinWizard(this.value);"/> 
             				<label for="d3"><#Step2_method3#></label>
+            		</p>
+            <br/><p><input type="radio" id="d2" name="dummyoption" value="1" width="10" onclick="showTextinWizard(this.value);"/> 
+            				<label for="d2"><#Step2_method2#></label>
             		</p>
             <br/><p><input type="radio" id="d1" name="dummyoption" value="0" width="10" onclick="showTextinWizard(this.value);"/> 
             				<label for="d1"><#Step2_method1#></label>
@@ -237,7 +237,7 @@ function checkPasswdValid(obj){
                 
                 	<tr id="target2">
                   	<td height="35"><span id="user2" style="color:#FFFFFF;"></span></td>
-                  	<td><input type="text" name="userpasswd2" id="userpasswd2" value="" class="input_25_table" onKeyPress="return is_string(this, event);" maxlength="16"></td>
+                  	<td><input type="text" name="userpasswd2" id="userpasswd2" value="" class="input_25_table" onKeyPress="return validator.isString(this, event);" maxlength="16"></td>
                   	<td align="center"><img src="/images/New_ui/checkbox.png"></td>
                   	<td align="center">&nbsp;</td>
                 	</tr>

@@ -4,7 +4,7 @@
  *
  * Copyright 2004, Broadcom Corporation
  * All Rights Reserved.
- *
+ * 
  * THIS SOFTWARE IS OFFERED "AS IS", AND BROADCOM GRANTS NO WARRANTIES OF ANY
  * KIND, EXPRESS OR IMPLIED, BY STATUTE, COMMUNICATION OR OTHERWISE. BROADCOM
  * SPECIFICALLY DISCLAIMS ANY IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS
@@ -130,6 +130,7 @@ ej_wl_sta_status(int eid, webs_t wp, char *name)
 #include <bcmparams.h>		/* for DEV_NUMIFS */
 
 #define SSID_FMT_BUF_LEN 4*32+1	/* Length for SSID format string */
+#define	MAX_STA_COUNT	128
 
 /* The below macros handle endian mis-matches between wl utility and wl driver. */
 static bool g_swap = FALSE;
@@ -216,10 +217,10 @@ dump_rateset(int eid, webs_t wp, int argc, char_t **argv, uint8 *rates, uint cou
  *
  * In its simplest form, it is a 20MHz channel number, with the implied band
  * of 2.4GHz if channel number <= 14, and 5GHz otherwise.
- *
+ * 
  * To allow for backward compatibility with scripts, the old form for
  * 40MHz channels is also allowed: <channel><ctl-sideband>
- *
+ *     
  * <channel>:
  *      primary channel of 40MHz, channel <= 14 is 2GHz, otherwise 5GHz
  * <ctl-sideband>:
@@ -469,7 +470,7 @@ wf_chspec_ntoa(chanspec_t chspec, char *buf)
 		/* ctl sideband string if needed for 2g 40MHz */
 		if (CHSPEC_IS40(chspec) && CHSPEC_IS2G(chspec)) {
 			sb = CHSPEC_SB_UPPER(chspec) ? "u" : "l";
-		}
+		} 
 
 		snprintf(buf, CHANSPEC_STR_LEN, "%s%d/%s%s", band, ctl_chan, bw, sb);
 #else
@@ -965,7 +966,7 @@ wl_dump_wps(webs_t wp, uint8* cp, uint len)
 	uint32 parse_len = len;
 	uint8 *proprietary_ie;
 	int retval = 0;
-
+ 
 	while ((proprietary_ie = wlu_parse_tlvs(parse, parse_len, DOT11_MNG_WPA_ID))) {
 		if (bcm_is_wps_ie(proprietary_ie, &parse, &parse_len)) {
 			/* Print WPS status */
@@ -1126,23 +1127,6 @@ dump_bss_info(int eid, webs_t wp, int argc, char_t **argv, wl_bss_info_t *bi)
 	return retval;
 }
 
-#ifdef RTCONFIG_TMOBILE
-static int
-dump_bss_info_hspot(int eid, webs_t wp, int argc, char_t **argv, wl_bss_info_t *bi)
-{
-	char ssidbuf[SSID_FMT_BUF_LEN];
-	int retval = 0;
-
-	wl_format_ssid(ssidbuf, bi->SSID, bi->SSID_len);
-
-	retval += websWrite(wp, "SSID: \"%s\"\n", ssidbuf);
-
-	retval += websWrite(wp, "BSSID: %s\n", wl_ether_etoa(&bi->BSSID));
-
-	return retval;
-}
-#endif
-
 static int
 wl_status(int eid, webs_t wp, int argc, char_t **argv, int unit)
 {
@@ -1188,53 +1172,6 @@ wl_status(int eid, webs_t wp, int argc, char_t **argv, int unit)
 	return retval;
 }
 
-#ifdef RTCONFIG_TMOBILE
-static int
-wl_status_hspot(int eid, webs_t wp, int argc, char_t **argv, int unit)
-{
-	int ret;
-	struct ether_addr bssid;
-	wlc_ssid_t ssid;
-	char ssidbuf[SSID_FMT_BUF_LEN];
-	wl_bss_info_t *bi;
-	int retval = 0;
-	char tmp[128], prefix[] = "wlXXXXXXXXXX_";
-	char *name;
-
-	snprintf(prefix, sizeof(prefix), "wl%d.3_", unit);
-	name = nvram_safe_get(strcat_r(prefix, "ifname", tmp));
-
-	if ((ret = wl_ioctl(name, WLC_GET_BSSID, &bssid, ETHER_ADDR_LEN)) == 0) {
-		/* The adapter is associated. */
-		*(uint32*)buf = htod32(WLC_IOCTL_MAXLEN);
-		if ((ret = wl_ioctl(name, WLC_GET_BSS_INFO, buf, WLC_IOCTL_MAXLEN)) < 0)
-			return 0;
-
-		bi = (wl_bss_info_t*)(buf + 4);
-		if (dtoh32(bi->version) == WL_BSS_INFO_VERSION ||
-		    dtoh32(bi->version) == LEGACY2_WL_BSS_INFO_VERSION ||
-		    dtoh32(bi->version) == LEGACY_WL_BSS_INFO_VERSION)
-			retval += dump_bss_info_hspot(eid, wp, argc, argv, bi);
-		else
-			retval += websWrite(wp, "Sorry, your driver has bss_info_version %d "
-				"but this program supports only version %d.\n",
-				bi->version, WL_BSS_INFO_VERSION);
-	} else {
-		retval += websWrite(wp, "Not associated. Last associated with ");
-
-		if ((ret = wl_ioctl(name, WLC_GET_SSID, &ssid, sizeof(wlc_ssid_t))) < 0) {
-			retval += websWrite(wp, "\n");
-			return 0;
-		}
-
-		wl_format_ssid(ssidbuf, ssid.SSID, dtoh32(ssid.SSID_len));
-		retval += websWrite(wp, "SSID: \"%s\"\n", ssidbuf);
-	}
-
-	return retval;
-}
-#endif
-
 sta_info_t *
 wl_sta_info(char *ifname, struct ether_addr *ea)
 {
@@ -1273,26 +1210,27 @@ wl_sta_info(char *ifname, struct ether_addr *ea)
 	return sta;
 }
 
-#if 0
 char *
 print_rate_buf(int raw_rate, char *buf)
 {
 	if (!buf) return NULL;
 
-	if ((raw_rate % 1000) == 0)
+	if (raw_rate == -1) sprintf(buf, "        ");
+	else if ((raw_rate % 1000) == 0)
 		sprintf(buf, "%6dM ", raw_rate / 1000);
 	else
 		sprintf(buf, "%6.1fM ", (double) raw_rate / 1000);
 
 	return buf;
 }
-#endif
 
 int wl_control_channel(int unit);
 
 #ifdef RTCONFIG_QTN
 extern int wl_status_5g(int eid, webs_t wp, int argc, char_t **argv);
 extern int ej_wl_status_5g(int eid, webs_t wp, int argc, char_t **argv);
+extern int wl_status_5g_array(int eid, webs_t wp, int argc, char_t **argv);
+extern int ej_wl_status_5g_array(int eid, webs_t wp, int argc, char_t **argv);
 #endif
 
 int
@@ -1301,21 +1239,14 @@ ej_wl_status(int eid, webs_t wp, int argc, char_t **argv, int unit)
 	char tmp[128], prefix[] = "wlXXXXXXXXXX_";
 	char *name;
 	char name_vif[] = "wlX.Y_XXXXXXXXXX";
-	struct maclist *auth, *assoc, *authorized;
-	int max_sta_count, maclist_size;
-	int i, j, val = 0, ret = 0;
-	int ii, jj;
-	char *arplist = NULL, *arplistptr;
-	char *leaselist = NULL, *leaselistptr;
-	char hostnameentry[16];
-	char ipentry[40], macentry[18];
-	int found;
-	char rxrate[12], txrate[12];
+	struct maclist *auth;
+	int mac_list_size;
+	int i, ii, val = 0, ret = 0;
 	char ea[ETHER_ADDR_STR_LEN];
 	scb_val_t scb_val;
-	int is_associated;
-	int is_authorized;
+	char rate_buf[8];
 	int hr, min, sec;
+	sta_info_t *sta;
 
 	snprintf(prefix, sizeof(prefix), "wl%d_", unit);
 #ifdef RTCONFIG_PROXYSTA
@@ -1327,15 +1258,6 @@ ej_wl_status(int eid, webs_t wp, int argc, char_t **argv, int unit)
 			(nvram_match(strcat_r(prefix, "nband", tmp), "1") ? "5 GHz" : "2.4 GHz"));
 		return ret;
 	}
-#endif
-#ifdef RTCONFIG_WIRELESSREPEATER
-	if ((nvram_get_int("sw_mode") == SW_MODE_REPEATER)
-		&& (nvram_get_int("wlc_band") == unit))
-	{
-		sprintf(name_vif, "wl%d.%d", unit, 1);
-		name = name_vif;
-	}
-	else
 #endif
 	name = nvram_safe_get(strcat_r(prefix, "ifname", tmp));
 #ifdef RTCONFIG_QTN
@@ -1433,162 +1355,86 @@ ej_wl_status(int eid, webs_t wp, int argc, char_t **argv, int unit)
 	}
 #endif
 
-	/* buffers and length */
-	max_sta_count = 128;
-	maclist_size = sizeof(auth->count) + max_sta_count * sizeof(struct ether_addr);
-	auth = malloc(maclist_size);
-	assoc = malloc(maclist_size);
-	authorized = malloc(maclist_size);
+#ifdef RTCONFIG_WIRELESSREPEATER
+	if ((nvram_get_int("sw_mode") == SW_MODE_REPEATER)
+		&& (nvram_get_int("wlc_band") == unit))
+	{
+		sprintf(name_vif, "wl%d.%d", unit, 1);
+		name = name_vif;
+	}
+#endif
 
-	if (!auth || !assoc || !authorized)
+	/* buffers and length */
+	mac_list_size = sizeof(auth->count) + MAX_STA_COUNT * sizeof(struct ether_addr);
+	auth = malloc(mac_list_size);
+
+	if (!auth)
 		goto exit;
+
+	memset(auth, 0, mac_list_size);
 
 	/* query wl for authenticated sta list */
 	strcpy((char*)auth, "authe_sta_list");
-	if (wl_ioctl(name, WLC_GET_VAR, auth, maclist_size))
+	if (wl_ioctl(name, WLC_GET_VAR, auth, mac_list_size))
 		goto exit;
-
-	/* query wl for associated sta list */
-	assoc->count = max_sta_count;
-	if (wl_ioctl(name, WLC_GET_ASSOCLIST, assoc, maclist_size))
-		goto exit;
-
-	/* query wl for authorized sta list */
-	strcpy((char*)authorized, "autho_sta_list");
-	if (wl_ioctl(name, WLC_GET_VAR, authorized, maclist_size))
-		goto exit;
-
-	/* Obtain mac + IP list */
-	arplist = read_whole_file("/proc/net/arp");
-	/* Obtain lease list - we still need the arp list for
-	   cases where a device uses a static IP rather than DHCP */
-	leaselist = read_whole_file("/var/lib/misc/dnsmasq.leases");
 
 	ret += websWrite(wp, "\n");
-#ifdef RTCONFIG_QTN
- 	ret += websWrite(wp, "Stations  (flags: S=Short GI, T=STBC, A=Associated, U=Authenticated)\n");
+	ret += websWrite(wp, "Stations List                           \n");
+	ret += websWrite(wp, "----------------------------------------\n");
+#ifdef RTCONFIG_BCMARM
+#ifndef RTCONFIG_QTN
+	ret += websWrite(wp, "%-18s%-11s%-11s%-8s%-4s%-4s%-5s%-8s%-8s%-12s\n",
+				"MAC", "Associated", "Authorized", "   RSSI", "PSM", "SGI", "STBC", "Tx rate", "Rx rate", "Connect Time");
 #else
-	ret += websWrite(wp, "Stations  (flags: P=Powersave Mode, S=Short GI, T=STBC, A=Associated, U=Authenticated)\n");
+	ret += websWrite(wp, "%-18s%-11s%-11s%-8s%-8s%-8s%-12s\n",
+				"MAC", "Associated", "Authorized", "   RSSI", "Tx rate", "Rx rate", "Connect Time");
+#endif
+#else
+	ret += websWrite(wp, "%-18s%-11s%-11s%-8s%-4s%-8s%-8s%-12s\n",
+				"MAC", "Associated", "Authorized", "   RSSI", "PSM", "Tx rate", "Rx rate", "Connect Time");
 #endif
 
- 	ret += websWrite(wp, "----------------------------------------\n");
-
-	if (leaselist) {
-		ret += websWrite(wp, "%-18s%-16s%-16s%-8s%-15s%-10s%-5s\n",
-				"MAC", "IP Address", "Name", "  RSSI", "  Rx/Tx Rate", "Connected", "Flags");
-	} else {
-		ret += websWrite(wp, "%-18s%-16s%-8s%-15s%-10s%-5s\n",
-				"MAC", "IP Address", "  RSSI", "  Rx/Tx Rate", "Connected", "Flags");
-	}
-
-	/* build authenticated/associated/authorized sta list */
+	/* build authenticated sta list */
 	for (i = 0; i < auth->count; i ++) {
+		sta = wl_sta_info(name, &auth->ea[i]);
+		if (!sta) continue;
 
-		ret += websWrite(wp, "%-18s", ether_etoa((void *)&auth->ea[i], ea));
+		ret += websWrite(wp, "%s ", ether_etoa((void *)&auth->ea[i], ea));
 
-		if (arplist) {
-			arplistptr = arplist;
-			found = 0;
+		ret += websWrite(wp, "%-11s%-11s", (sta->flags & WL_STA_ASSOC) ? "Yes" : " ", (sta->flags & WL_STA_AUTHO) ? "Yes" : "");
 
-			while ((arplistptr < arplist+strlen(arplist)-2) && (sscanf(arplistptr,"%15s %*s %*s %17s",ipentry,macentry) == 2)) {
-				if (upper_strcmp(macentry, ether_etoa((void *)&auth->ea[i], ea)) == 0) {
-					found = 1;
-					break;
-				} else {
-					arplistptr = strstr(arplistptr,"\n")+1;
-				}
-			}
-
-			ret += websWrite(wp, "%-16s", (found ? ipentry : ""));
-		}
-
-		// Retrieve hostname from dnsmasq leases
-		if (leaselist) {
-			leaselistptr = leaselist;
-			found = 0;
-
-			while ((leaselistptr < leaselist+strlen(leaselist)-2) && (sscanf(leaselistptr,"%*s %17s %*s %15s %*s", macentry, hostnameentry) == 2)) {
-				if (upper_strcmp(macentry, ether_etoa((void *)&auth->ea[i], ea)) == 0) {
-					found = 1;
-					break;
-				} else {
-					leaselistptr = strstr(leaselistptr,"\n")+1;
-				}
-			}
-
-			ret += websWrite(wp, "%-15s ", (found ? hostnameentry : ""));
-		}
-
-// RSSI
 		memcpy(&scb_val.ea, &auth->ea[i], ETHER_ADDR_LEN);
 		if (wl_ioctl(name, WLC_GET_RSSI, &scb_val, sizeof(scb_val_t)))
 			ret += websWrite(wp, "%-8s", "");
 		else
-			ret += websWrite(wp, " %3ddBm ", scb_val.val);
+			ret += websWrite(wp, "%4ddBm ", scb_val.val);
 
-		sta_info_t *sta = wl_sta_info(name, &auth->ea[i]);
-		if (sta && (sta->flags & WL_STA_SCBSTATS))
+		if (sta->flags & WL_STA_SCBSTATS)
 		{
-// Rate
-			if ((int)sta->rx_rate > 0)
-				sprintf(rxrate,"%d", sta->rx_rate / 1000);
-			else
-				strcpy(rxrate,"??");
+#ifdef RTCONFIG_BCMARM
+#ifndef RTCONFIG_QTN
+			ret += websWrite(wp, "%-4s%-4s%-5s",
+				(sta->flags & WL_STA_PS) ? "Yes" : "No",
+				((sta->ht_capabilities & WL_STA_CAP_SHORT_GI_20) || (sta->ht_capabilities & WL_STA_CAP_SHORT_GI_40)) ? "Yes" : "No",
+				((sta->ht_capabilities & WL_STA_CAP_TX_STBC) || (sta->ht_capabilities & WL_STA_CAP_RX_STBC_MASK)) ? "Yes" : "No");
+#endif
+#else
+			ret += websWrite(wp, "%-4s",
+				(sta->flags & WL_STA_PS) ? "Yes" : "No");
+#endif
+			ret += websWrite(wp, "%s", print_rate_buf(sta->tx_rate, rate_buf));
+			ret += websWrite(wp, "%s", print_rate_buf(sta->rx_rate, rate_buf));
 
-			if ((int)sta->tx_rate > 0)
-				sprintf(txrate,"%d Mbps", sta->tx_rate / 1000);
-			else
-				sprintf(rxrate,"??");
-
-			ret += websWrite(wp, "%4s/%-10s", rxrate, txrate);
-
-// Connect time
 			hr = sta->in / 3600;
 			min = (sta->in % 3600) / 60;
 			sec = sta->in - hr * 3600 - min * 60;
-			ret += websWrite(wp, "%02d:%02d:%02d  ", hr, min, sec);
-
-// Flags
-#ifdef RTCONFIG_BCMARM
-			ret += websWrite(wp, "%s%s%s",
-				(sta->flags & WL_STA_PS) ? "P" : " ",
-				((sta->ht_capabilities & WL_STA_CAP_SHORT_GI_20) || (sta->ht_capabilities & WL_STA_CAP_SHORT_GI_40)) ? "S" : " ",
-				((sta->ht_capabilities & WL_STA_CAP_TX_STBC) || (sta->ht_capabilities & WL_STA_CAP_RX_STBC_MASK)) ? "T" : " ");
-#else
-			ret += websWrite(wp, "%s",
-				(sta->flags & WL_STA_PS) ? "P" : " ");
-#endif
+			ret += websWrite(wp, "%02d:%02d:%02d", hr, min, sec);
 		}
 
-// Auth/Ass flags
-
-		is_associated = 0;
-		is_authorized = 0;
-
-		for (j = 0; j < assoc->count; j ++) {
-			if (!bcmp((void *)&auth->ea[i], (void *)&assoc->ea[j], ETHER_ADDR_LEN)) {
-				is_associated = 1;
-				break;
-			}
-		}
-
-		for (j = 0; j < authorized->count; j ++) {
-			if (!bcmp((void *)&auth->ea[i], (void *)&authorized->ea[j], ETHER_ADDR_LEN)) {
-				is_authorized = 1;
-				break;
-			}
-		}
-
-		ret += websWrite(wp, "%s%s\n",
-			(is_associated ? "A" : " "),
-			(is_authorized ? "U" : " "));
+		ret += websWrite(wp, "\n");
 	}
 
-#ifdef RTCONFIG_TMOBILE
-	for (i = 1; i < 3; i++) {
-#else
 	for (i = 1; i < 4; i++) {
-#endif
 #ifdef RTCONFIG_WIRELESSREPEATER
 		if ((nvram_get_int("sw_mode") == SW_MODE_REPEATER)
 			&& (unit == nvram_get_int("wlc_band")) && (i == 1))
@@ -1599,133 +1445,54 @@ ej_wl_status(int eid, webs_t wp, int argc, char_t **argv, int unit)
 		{
 			sprintf(name_vif, "wl%d.%d", unit, i);
 
+			memset(auth, 0, mac_list_size);
+
 			/* query wl for authenticated sta list */
 			strcpy((char*)auth, "authe_sta_list");
-			if (wl_ioctl(name_vif, WLC_GET_VAR, auth, maclist_size))
-				goto exit;
-
-			/* query wl for associated sta list */
-			assoc->count = max_sta_count;
-			if (wl_ioctl(name_vif, WLC_GET_ASSOCLIST, assoc, maclist_size))
-				goto exit;
-
-			/* query wl for authorized sta list */
-			strcpy((char*)authorized, "autho_sta_list");
-			if (wl_ioctl(name_vif, WLC_GET_VAR, authorized, maclist_size))
+			if (wl_ioctl(name_vif, WLC_GET_VAR, auth, mac_list_size))
 				goto exit;
 
 			for (ii = 0; ii < auth->count; ii++) {
+				sta = wl_sta_info(name_vif, &auth->ea[ii]);
+				if (!sta) continue;
 
-				ret += websWrite(wp, "%-18s", ether_etoa((void *)&auth->ea[ii], ea));
+				ret += websWrite(wp, "%s ", ether_etoa((void *)&auth->ea[ii], ea));
 
-				if (arplist) {
-					arplistptr = arplist;
-					found = 0;
+				ret += websWrite(wp, "%-11s%-11s", (sta->flags & WL_STA_ASSOC) ? "Yes" : " ", (sta->flags & WL_STA_AUTHO) ? "Yes" : "");
 
-					while ((arplistptr < arplist+strlen(arplist)-2) && (sscanf(arplistptr,"%15s %*s %*s %17s",ipentry,macentry) == 2)) {
-						if (upper_strcmp(macentry, ether_etoa((void *)&auth->ea[ii], ea)) == 0) {
-							found = 1;
-							break;
-						} else {
-							arplistptr = strstr(arplistptr,"\n")+1;
-						}
-					}
-
-					ret += websWrite(wp, "%-16s", (found ? ipentry : ""));
-				}
-
-				// Retrieve hostname from dnsmasq leases
-				if (leaselist) {
-					leaselistptr = leaselist;
-					found = 0;
-
-					while ((leaselistptr < leaselist+strlen(leaselist)-2) && (sscanf(leaselistptr,"%*s %17s %*s %15s %*s", macentry, hostnameentry) == 2)) {
-						if (upper_strcmp(macentry, ether_etoa((void *)&auth->ea[i], ea)) == 0) {
-							found = 1;
-							break;
-						} else {
-							leaselistptr = strstr(leaselistptr,"\n")+1;
-						}
-					}
-
-					ret += websWrite(wp, "%-15s ", (found ? hostnameentry : ""));
-				}
-
-// RSSI
 				memcpy(&scb_val.ea, &auth->ea[ii], ETHER_ADDR_LEN);
 				if (wl_ioctl(name, WLC_GET_RSSI, &scb_val, sizeof(scb_val_t)))
 					ret += websWrite(wp, "%-8s", "");
 				else
-					ret += websWrite(wp, " %3ddBm ", scb_val.val);
+					ret += websWrite(wp, "%4ddBm ", scb_val.val);
 
-				sta_info_t *sta = wl_sta_info(name, &auth->ea[ii]);
-				if (sta && (sta->flags & WL_STA_SCBSTATS))
+				if (sta->flags & WL_STA_SCBSTATS)
 				{
-// Rate
-					if ((int)sta->rx_rate > 0)
-						sprintf(rxrate,"%d", sta->rx_rate / 1000);
-					else
-						strcpy(rxrate,"??");
+#ifdef RTCONFIG_BCMARM
+					ret += websWrite(wp, "%-4s%-4s%-5s",
+						(sta->flags & WL_STA_PS) ? "Yes" : "No",
+						((sta->ht_capabilities & WL_STA_CAP_SHORT_GI_20) || (sta->ht_capabilities & WL_STA_CAP_SHORT_GI_40)) ? "Yes" : "No",
+						((sta->ht_capabilities & WL_STA_CAP_TX_STBC) || (sta->ht_capabilities & WL_STA_CAP_RX_STBC_MASK)) ? "Yes" : "No");
+#else
+					ret += websWrite(wp, "%-4s",
+						(sta->flags & WL_STA_PS) ? "Yes" : "No");
+#endif
+					ret += websWrite(wp, "%s", print_rate_buf(sta->tx_rate, rate_buf));
+					ret += websWrite(wp, "%s", print_rate_buf(sta->rx_rate, rate_buf));
 
-					if ((int)sta->tx_rate > 0)
-						sprintf(txrate,"%d Mbps", sta->tx_rate / 1000);
-					else
-						sprintf(rxrate,"??");
-
-					ret += websWrite(wp, "%4s/%-10s", rxrate, txrate);
-
-// Connect time
 					hr = sta->in / 3600;
 					min = (sta->in % 3600) / 60;
 					sec = sta->in - hr * 3600 - min * 60;
-					ret += websWrite(wp, "%02d:%02d:%02d  ", hr, min, sec);
-
-// Flags
-#ifdef RTCONFIG_BCMARM
-					ret += websWrite(wp, "%s%s%s",
-						(sta->flags & WL_STA_PS) ? "P" : " ",
-						((sta->ht_capabilities & WL_STA_CAP_SHORT_GI_20) || (sta->ht_capabilities & WL_STA_CAP_SHORT_GI_40)) ? "S" : " ",
-						((sta->ht_capabilities & WL_STA_CAP_TX_STBC) || (sta->ht_capabilities & WL_STA_CAP_RX_STBC_MASK)) ? "T" : " ");
-#else
-					ret += websWrite(wp, "%s",
-						(sta->flags & WL_STA_PS) ? "P" : " ");
-#endif
+					ret += websWrite(wp, "%02d:%02d:%02d", hr, min, sec);
 				}
 
-// Auth/Ass flags
-
-				is_associated = 0;
-				is_authorized = 0;
-
-				for (jj = 0; jj < assoc->count; jj ++) {
-					if (!bcmp((void *)&auth->ea[ii], (void *)&assoc->ea[jj], ETHER_ADDR_LEN)) {
-						is_associated = 1;
-						break;
-					}
-				}
-
-				for (jj = 0; jj < authorized->count; jj ++) {
-					if (!bcmp((void *)&auth->ea[ii], (void *)&authorized->ea[jj], ETHER_ADDR_LEN)) {
-						is_authorized = 1;
-						break;
-					}
-				}
-
-				ret += websWrite(wp, "%s%s\n",
-					(is_associated ? "A" : " "),
-					(is_authorized ? "U" : " "));
+				ret += websWrite(wp, "\n");
 			}
 		}
 	}
-
-	ret += websWrite(wp, "\n");
 	/* error/exit */
 exit:
 	if (auth) free(auth);
-	if (assoc) free(assoc);
-	if (authorized) free(authorized);
-	if (arplist) free(arplist);
-	if (leaselist) free(leaselist);
 
 	return ret;
 }
@@ -1768,7 +1535,7 @@ wl_extent_channel(int unit)
         snprintf(prefix, sizeof(prefix), "wl%d_", unit);
         name = nvram_safe_get(strcat_r(prefix, "ifname", tmp));
 
-	if (unit == 1) {
+	if ((unit == 1) || (unit == 2)) {
 #ifdef RTCONFIG_QTN
 		if (rpc_qcsapi_get_bw(&bw) >= 0) {
 			return bw;
@@ -1820,7 +1587,12 @@ wl_extent_channel(int unit)
 int
 ej_wl_extent_channel(int eid, webs_t wp, int argc, char_t **argv)
 {
+
+#ifdef RTAC3200
+	return websWrite(wp, "[\"%d\", \"%d\", \"%d\"]", wl_extent_channel(0), wl_extent_channel(1), wl_extent_channel(2));
+#else
 	return websWrite(wp, "[\"%d\", \"%d\"]", wl_extent_channel(0), wl_extent_channel(1));
+#endif
 }
 
 int
@@ -1886,7 +1658,6 @@ ej_wl_control_channel(int eid, webs_t wp, int argc, char_t **argv)
 #ifdef RTAC3200
 	int channel_50_2 = 0;
 #endif
-
 	channel_24 = wl_control_channel(0);
 
 	if (!(channel_50 = wl_control_channel(1)))
@@ -2022,6 +1793,14 @@ ej_wl_channel_list_5g(int eid, webs_t wp, int argc, char_t **argv)
 }
 #endif
 
+#ifdef RTAC3200
+int
+ej_wl_channel_list_5g_2(int eid, webs_t wp, int argc, char_t **argv)
+{
+	return ej_wl_channel_list(eid, wp, argc, argv, 2);
+}
+#endif
+
 static int ej_wl_rate(int eid, webs_t wp, int argc, char_t **argv, int unit)
 {
 	int retval = 0;
@@ -2074,7 +1853,7 @@ static int ej_wl_rate(int eid, webs_t wp, int argc, char_t **argv, int unit)
 		goto ERROR;
 	else if (wl_ioctl(name, WLC_GET_RATE, &rate, sizeof(int)))
 	{
-		dbG("can not get rate info of %s\n", name);
+		dbg("can not get rate info of %s\n", name);
 		goto ERROR;
 	}
 	else
@@ -2085,6 +1864,32 @@ static int ej_wl_rate(int eid, webs_t wp, int argc, char_t **argv, int unit)
 		else
 			sprintf(rate_buf, "%d%s Mbps", (rate / 2), (rate & 1) ? ".5" : "");
 	}
+
+#ifdef RTCONFIG_BCM7
+	/* workaround for SDK 7.x */
+	if ((wl_control_channel(unit) > 0) ?
+		(wl_control_channel(unit) <= CH_MAX_2G_CHANNEL) :
+		nvram_match(strcat_r(prefix, "nband", tmp), "2")) {
+
+		if (!nvram_match(strcat_r(prefix, "mode", tmp), "psta"))
+			goto ERROR;
+
+		struct ether_addr bssid;
+		unsigned char bssid_null[6] = {0x0,0x0,0x0,0x0,0x0,0x0};
+		if (wl_ioctl(name, WLC_GET_BSSID, &bssid, ETHER_ADDR_LEN) != 0)
+			goto ERROR;
+		else if (!memcmp(&bssid, bssid_null, 6))
+			goto ERROR;
+
+		sta_info_t *sta = wl_sta_info(name, &bssid);
+		if (sta && (sta->flags & WL_STA_SCBSTATS)) {
+			if ((sta->rx_rate % 1000) == 0)
+				sprintf(rate_buf, "%6d Mbps ", sta->rx_rate / 1000);
+			else
+				sprintf(rate_buf, "%6.1fM Mbps", (double) sta->rx_rate / 1000);
+		}
+	}
+#endif
 
 ERROR:
 	retval += websWrite(wp, "%s", rate_buf);
@@ -2110,6 +1915,14 @@ ej_wl_rate_5g(int eid, webs_t wp, int argc, char_t **argv)
 	return ej_wl_rate(eid, wp, argc, argv, 0);
 #endif
 }
+
+#ifdef RTAC3200
+int
+ej_wl_rate_5g_2(int eid, webs_t wp, int argc, char_t **argv)
+{
+	return ej_wl_rate(eid, wp, argc, argv, 2);
+}
+#endif
 
 static int wps_error_count = 0;
 
@@ -2292,7 +2105,7 @@ int wl_wps_info(int eid, webs_t wp, int argc, char_t **argv, int unit)
 			else
 				retval += websWrite(wp, "<wps_info>%s</wps_info>\n", getWscStatusStr_qtn());
 		}
-	else
+		else
 #endif
 		retval += websWrite(wp, "<wps_info>%s</wps_info>\n", getWscStatusStr());
 	}
@@ -2415,6 +2228,7 @@ int wl_wps_info(int eid, webs_t wp, int argc, char_t **argv, int unit)
 			}
 		}
 	}
+	else
 #endif
 	if (!strlen(nvram_safe_get(strcat_r(prefix, "wpa_psk", tmp))))
 		retval += websWrite(wp, "<wps_info>None</wps_info>\n");
@@ -2516,81 +2330,6 @@ ej_wps_info_2g(int eid, webs_t wp, int argc, char_t **argv)
 {
 	return wl_wps_info(eid, wp, argc, argv, 0);
 }
-
-/* Dump NAT table <tr><td>destination</td><td>MAC</td><td>IP</td><td>expires</td></tr> format */
-int
-ej_nat_table(int eid, webs_t wp, int argc, char_t **argv)
-{
-	int ret = 0;
-#ifdef REMOVE
-	int needlen = 0, listlen, i
-	netconf_nat_t *nat_list = 0;
-	netconf_nat_t **plist, *cur;
-	char line[256], tstr[32];
-#endif
-	ret += websWrite(wp, "Destination     Proto.  Port Range  Redirect to\n");
-
-	// find another way to show iptable
-#ifdef REMOVE
-	netconf_get_nat(NULL, &needlen);
-
-	if (needlen > 0)
-	{
-		nat_list = (netconf_nat_t *) malloc(needlen);
-		if (nat_list) {
-			memset(nat_list, 0, needlen);
-			listlen = needlen;
-			if (netconf_get_nat(nat_list, &listlen) == 0 && needlen == listlen) {
-				listlen = needlen/sizeof(netconf_nat_t);
-
-				for(i=0;i<listlen;i++)
-				{
-				//printf("%d %d %d\n", nat_list[i].target,
-				//		nat_list[i].match.ipproto,
-				//		nat_list[i].match.dst.ipaddr.s_addr);
-				if (nat_list[i].target==NETCONF_DNAT)
-				{
-					if (nat_list[i].match.dst.ipaddr.s_addr==0)
-					{
-						sprintf(line, "%-15s", "all");
-					}
-					else
-					{
-						sprintf(line, "%-15s", inet_ntoa(nat_list[i].match.dst.ipaddr));
-					}
-
-
-					if (ntohs(nat_list[i].match.dst.ports[0])==0)
-						sprintf(line, "%s %-7s", line, "ALL");
-					else if (nat_list[i].match.ipproto==IPPROTO_TCP)
-						sprintf(line, "%s %-7s", line, "TCP");
-					else sprintf(line, "%s %-7s", line, "UDP");
-
-					if (nat_list[i].match.dst.ports[0] == nat_list[i].match.dst.ports[1])
-					{
-						if (ntohs(nat_list[i].match.dst.ports[0])==0)
-						sprintf(line, "%s %-11s", line, "ALL");
-						else
-						sprintf(line, "%s %-11d", line, ntohs(nat_list[i].match.dst.ports[0]));
-					}
-					else
-					{
-						sprintf(tstr, "%d:%d", ntohs(nat_list[i].match.dst.ports[0]),
-						ntohs(nat_list[i].match.dst.ports[1]));
-						sprintf(line, "%s %-11s", line, tstr);
-					}
-					sprintf(line, "%s %s\n", line, inet_ntoa(nat_list[i].ipaddr));
-					ret += websWrite(wp, line);
-				}
-				}
-			}
-			free(nat_list);
-		}
-	}
-#endif
-	return ret;
-}
-
 
 static int wpa_key_mgmt_to_bitfield(const unsigned char *s)
 {
@@ -2937,8 +2676,7 @@ ej_SiteSurvey(int eid, webs_t wp, int argc, char_t **argv)
 	struct bss_ie_hdr *ie;
 	NDIS_802_11_NETWORK_TYPE NetWorkType;
 	struct maclist *authorized;
-	int maclist_size;
-	int max_sta_count = 128;
+	int mac_list_size;
 	int wl_authorized = 0;
 	wl_scan_params_t *params;
 	int params_size = WL_SCAN_PARAMS_FIXED_SIZE + NUMCHANS * sizeof(uint16);
@@ -3129,7 +2867,7 @@ ej_SiteSurvey(int eid, webs_t wp, int argc, char_t **argv)
 
 				ie = (struct bss_ie_hdr *) ((unsigned char *) info + sizeof(*info));
 				for (left = info->ie_length; left > 0; // look for RSN IE first
-					left -= (ie->len + 2), ie = (struct bss_ie_hdr *) ((unsigned char *) ie + 2 + ie->len))
+					left -= (ie->len + 2), ie = (struct bss_ie_hdr *) ((unsigned char *) ie + 2 + ie->len)) 
 				{
 					if (ie->elem_id != DOT11_MNG_RSN_ID)
 						continue;
@@ -3143,7 +2881,7 @@ ej_SiteSurvey(int eid, webs_t wp, int argc, char_t **argv)
 
 				ie = (struct bss_ie_hdr *) ((unsigned char *) info + sizeof(*info));
 				for (left = info->ie_length; left > 0; // then look for WPA IE
-					left -= (ie->len + 2), ie = (struct bss_ie_hdr *) ((unsigned char *) ie + 2 + ie->len))
+					left -= (ie->len + 2), ie = (struct bss_ie_hdr *) ((unsigned char *) ie + 2 + ie->len)) 
 				{
 					if (ie->elem_id != DOT11_MNG_WPA_ID)
 						continue;
@@ -3233,19 +2971,23 @@ next_info:
 
 	if (strstr(nvram_safe_get("wl0_akm"), "psk"))
 	{
-		maclist_size = sizeof(authorized->count) + max_sta_count * sizeof(struct ether_addr);
-		authorized = malloc(maclist_size);
+		mac_list_size = sizeof(authorized->count) + MAX_STA_COUNT * sizeof(struct ether_addr);
+		authorized = malloc(mac_list_size);
+
+		if (!authorized) goto ap_list;
+
+		memset(authorized, 0, mac_list_size);
 
 		// query wl for authorized sta list
 		strcpy((char*)authorized, "autho_sta_list");
-		if (!wl_ioctl(WIF, WLC_GET_VAR, authorized, maclist_size))
+		if (!wl_ioctl(WIF, WLC_GET_VAR, authorized, mac_list_size))
 		{
 			if (authorized->count > 0) wl_authorized = 1;
 		}
 
 		if (authorized) free(authorized);
 	}
-
+ap_list:
 	retval += websWrite(wp, "[");
 	if (ap_count > 0)
 	for (i = 0; i < ap_count; i++)
@@ -3407,7 +3149,7 @@ ej_urelease(int eid, webs_t wp, int argc, char_t **argv)
 	return retval;
 }
 
-
+#if 0
 static bool find_ethaddr_in_list(void *ethaddr, struct maclist *list){
 	int i;
 
@@ -3417,12 +3159,13 @@ static bool find_ethaddr_in_list(void *ethaddr, struct maclist *list){
 
 	return FALSE;
 }
+#endif
 
 static int wl_sta_list(int eid, webs_t wp, int argc, char_t **argv, int unit) {
 	char tmp[128], prefix[] = "wlXXXXXXXXXX_";
 	char *name;
-	struct maclist *auth, *assoc, *authorized;
-	int max_sta_count, maclist_size;
+	struct maclist *auth;
+	int mac_list_size;
 	int i, firstRow = 1;
 	char ea[ETHER_ADDR_STR_LEN];
 	scb_val_t scb_val;
@@ -3430,42 +3173,30 @@ static int wl_sta_list(int eid, webs_t wp, int argc, char_t **argv, int unit) {
 	char name_vif[] = "wlX.Y_XXXXXXXXXX";
 	int ii;
 	int ret = 0;
+	sta_info_t *sta;
 
 	/* buffers and length */
-	max_sta_count = 256;
-	maclist_size = sizeof(auth->count)+max_sta_count*sizeof(struct ether_addr);
+	mac_list_size = sizeof(auth->count) + MAX_STA_COUNT * sizeof(struct ether_addr);
+	auth = malloc(mac_list_size);
 
-	auth = malloc(maclist_size);
-	assoc = malloc(maclist_size);
-	authorized = malloc(maclist_size);
-
-	if(!auth || !assoc || !authorized)
+	if(!auth)
 		goto exit;
 
 	snprintf(prefix, sizeof(prefix), "wl%d_", unit);
 	name = nvram_safe_get(strcat_r(prefix, "ifname", tmp));
 
-	memset(auth, 0, maclist_size);
-	memset(assoc, 0, maclist_size);
-	memset(authorized, 0, maclist_size);
+	memset(auth, 0, mac_list_size);
 
 	/* query wl for authenticated sta list */
 	strcpy((char*)auth, "authe_sta_list");
-	if (wl_ioctl(name, WLC_GET_VAR, auth, maclist_size))
+	if (wl_ioctl(name, WLC_GET_VAR, auth, mac_list_size))
 		goto exit;
 
-	/* query wl for associated sta list */
-	assoc->count = max_sta_count;
-	if (wl_ioctl(name, WLC_GET_ASSOCLIST, assoc, maclist_size))
-		goto exit;
-
-	/* query wl for authorized sta list */
-	strcpy((char*)authorized, "autho_sta_list");
-	if (wl_ioctl(name, WLC_GET_VAR, authorized, maclist_size))
-		goto exit;
-
-	/* build authenticated/associated/authorized sta list */
+	/* build authenticated sta list */
 	for(i = 0; i < auth->count; ++i) {
+		sta = wl_sta_info(name, &auth->ea[i]);
+		if (!sta) continue;
+
 		if (firstRow == 1)
 			firstRow = 0;
 		else
@@ -3475,10 +3206,10 @@ static int wl_sta_list(int eid, webs_t wp, int argc, char_t **argv, int unit) {
 
 		ret += websWrite(wp, "\"%s\"", ether_etoa((void *)&auth->ea[i], ea));
 
-		value = (find_ethaddr_in_list((void *)&auth->ea[i], assoc))?"Yes":"No";
+		value = (sta->flags & WL_STA_ASSOC) ? "Yes" : "No";
 		ret += websWrite(wp, ", \"%s\"", value);
 
-		value = (find_ethaddr_in_list((void *)&auth->ea[i], authorized))?"Yes":"No";
+		value = (sta->flags & WL_STA_AUTHO) ? "Yes" : "No";
 		ret += websWrite(wp, ", \"%s\"", value);
 
 		memcpy(&scb_val.ea, &auth->ea[i], ETHER_ADDR_LEN);
@@ -3501,22 +3232,17 @@ static int wl_sta_list(int eid, webs_t wp, int argc, char_t **argv, int unit) {
 		{
 			sprintf(name_vif, "wl%d.%d", unit, i);
 
+			memset(auth, 0, mac_list_size);
+
 			/* query wl for authenticated sta list */
 			strcpy((char*)auth, "authe_sta_list");
-			if (wl_ioctl(name_vif, WLC_GET_VAR, auth, maclist_size))
-				goto exit;
-
-			/* query wl for associated sta list */
-			assoc->count = max_sta_count;
-			if (wl_ioctl(name_vif, WLC_GET_ASSOCLIST, assoc, maclist_size))
-				goto exit;
-
-			/* query wl for authorized sta list */
-			strcpy((char*)authorized, "autho_sta_list");
-			if (wl_ioctl(name_vif, WLC_GET_VAR, authorized, maclist_size))
+			if (wl_ioctl(name_vif, WLC_GET_VAR, auth, mac_list_size))
 				goto exit;
 
 			for(ii = 0; ii < auth->count; ii++) {
+				sta = wl_sta_info(name_vif, &auth->ea[ii]);
+				if (!sta) continue;
+
 				if (firstRow == 1)
 					firstRow = 0;
 				else
@@ -3526,10 +3252,10 @@ static int wl_sta_list(int eid, webs_t wp, int argc, char_t **argv, int unit) {
 
 				ret += websWrite(wp, "\"%s\"", ether_etoa((void *)&auth->ea[ii], ea));
 
-				value = (find_ethaddr_in_list((void *)&auth->ea[ii], assoc))?"Yes":"No";
+				value = (sta->flags & WL_STA_ASSOC) ? "Yes" : "No";
 				ret += websWrite(wp, ", \"%s\"", value);
 
-				value = (find_ethaddr_in_list((void *)&auth->ea[ii], authorized))?"Yes":"No";
+				value = (sta->flags & WL_STA_AUTHO) ? "Yes" : "No";
 				ret += websWrite(wp, ", \"%s\"", value);
 
 				memcpy(&scb_val.ea, &auth->ea[ii], ETHER_ADDR_LEN);
@@ -3546,8 +3272,6 @@ static int wl_sta_list(int eid, webs_t wp, int argc, char_t **argv, int unit) {
 	/* error/exit */
 exit:
 	if(auth) free(auth);
-	if(assoc) free(assoc);
-	if(authorized) free(authorized);
 
 	return ret;
 }
@@ -3572,6 +3296,15 @@ ej_wl_sta_list_5g(int eid, webs_t wp, int argc, char_t **argv)
 	return wl_sta_list(eid, wp, argc, argv, 0);
 #endif
 }
+
+#ifdef RTAC3200
+int
+ej_wl_sta_list_5g_2(int eid, webs_t wp, int argc, char_t **argv)
+{
+	return wl_sta_list(eid, wp, argc, argv, 2);
+}
+#endif
+
 #else
 extern int ej_wl_sta_list_5g(int eid, webs_t wp, int argc, char_t **argv);
 #endif
@@ -3582,28 +3315,24 @@ int ej_wl_auth_list(int eid, webs_t wp, int argc, char_t **argv) {
 	int unit = 0;
 	char tmp[128], prefix[] = "wlXXXXXXXXXX_";
 	char *name;
-	struct maclist *auth, *assoc, *authorized;
-	int max_sta_count, maclist_size;
+	struct maclist *auth;
+	int mac_list_size;
 	int i, firstRow = 1;
 	char ea[ETHER_ADDR_STR_LEN];
-	scb_val_t scb_val;
 	char *value;
 	char word[256], *next;
 	char name_vif[] = "wlX.Y_XXXXXXXXXX";
 	int ii;
 	int ret = 0;
+	sta_info_t *sta;
 
 	/* buffers and length */
-	max_sta_count = 256;
-	maclist_size = sizeof(auth->count)+max_sta_count*sizeof(struct ether_addr);
+	mac_list_size = sizeof(auth->count) + MAX_STA_COUNT * sizeof(struct ether_addr);
+	auth = malloc(mac_list_size);
+	//wme = malloc(mac_list_size);
 
-	auth = malloc(maclist_size);
-	assoc = malloc(maclist_size);
-	authorized = malloc(maclist_size);
-	//wme = malloc(maclist_size);
-
-	//if(!auth || !assoc || !authorized || !wme)
-	if(!auth || !assoc || !authorized)
+	//if(!auth || !wme)
+	if(!auth)
 		goto exit;
 
 	foreach (word, nvram_safe_get("wl_ifnames"), next) {
@@ -3622,33 +3351,24 @@ int ej_wl_auth_list(int eid, webs_t wp, int argc, char_t **argv) {
 		snprintf(prefix, sizeof(prefix), "wl%d_", unit);
 		name = nvram_safe_get(strcat_r(prefix, "ifname", tmp));
 
-		memset(auth, 0, maclist_size);
-		memset(assoc, 0, maclist_size);
-		memset(authorized, 0, maclist_size);
-		//memset(wme, 0, maclist_size);
+		memset(auth, 0, mac_list_size);
+		//memset(wme, 0, mac_list_size);
 
 		/* query wl for authenticated sta list */
 		strcpy((char*)auth, "authe_sta_list");
-		if (wl_ioctl(name, WLC_GET_VAR, auth, maclist_size))
-			goto exit;
-
-		/* query wl for associated sta list */
-		assoc->count = max_sta_count;
-		if (wl_ioctl(name, WLC_GET_ASSOCLIST, assoc, maclist_size))
-			goto exit;
-
-		/* query wl for authorized sta list */
-		strcpy((char*)authorized, "autho_sta_list");
-		if (wl_ioctl(name, WLC_GET_VAR, authorized, maclist_size))
+		if (wl_ioctl(name, WLC_GET_VAR, auth, mac_list_size))
 			goto exit;
 
 		/* query wl for WME sta list */
 		/*strcpy((char*)wme, "wme_sta_list");
-		if (wl_ioctl(name, WLC_GET_VAR, wme, maclist_size))
+		if (wl_ioctl(name, WLC_GET_VAR, wme, mac_list_size))
 			goto exit;*/
 
-		/* build authenticated/associated/authorized sta list */
+		/* build authenticated/associated sta list */
 		for(i = 0; i < auth->count; ++i) {
+			sta = wl_sta_info(name, &auth->ea[i]);
+			if (!sta) continue;
+
 			if (firstRow == 1)
 				firstRow = 0;
 			else
@@ -3658,10 +3378,10 @@ int ej_wl_auth_list(int eid, webs_t wp, int argc, char_t **argv) {
 
 			ret += websWrite(wp, "\"%s\"", ether_etoa((void *)&auth->ea[i], ea));
 
-			value = (find_ethaddr_in_list((void *)&auth->ea[i], assoc))?"Yes":"No";
+			value = (sta->flags & WL_STA_ASSOC) ? "Yes" : "No";
 			ret += websWrite(wp, ", \"%s\"", value);
 
-			value = (find_ethaddr_in_list((void *)&auth->ea[i], authorized))?"Yes":"No";
+			value = (sta->flags & WL_STA_AUTHO) ? "Yes" : "No";
 			ret += websWrite(wp, ", \"%s\"", value);
 
 			/*value = (find_ethaddr_in_list((void *)&auth->ea[i], wme))?"Yes":"No";
@@ -3681,22 +3401,17 @@ int ej_wl_auth_list(int eid, webs_t wp, int argc, char_t **argv) {
 			{
 				sprintf(name_vif, "wl%d.%d", unit, i);
 
+				memset(auth, 0, mac_list_size);
+
 				/* query wl for authenticated sta list */
 				strcpy((char*)auth, "authe_sta_list");
-				if (wl_ioctl(name_vif, WLC_GET_VAR, auth, maclist_size))
-					goto exit;
-
-				/* query wl for associated sta list */
-				assoc->count = max_sta_count;
-				if (wl_ioctl(name_vif, WLC_GET_ASSOCLIST, assoc, maclist_size))
-					goto exit;
-
-				/* query wl for authorized sta list */
-				strcpy((char*)authorized, "autho_sta_list");
-				if (wl_ioctl(name_vif, WLC_GET_VAR, authorized, maclist_size))
+				if (wl_ioctl(name_vif, WLC_GET_VAR, auth, mac_list_size))
 					goto exit;
 
 				for(ii = 0; ii < auth->count; ii++) {
+					sta = wl_sta_info(name_vif, &auth->ea[ii]);
+					if (!sta) continue;
+
 					if (firstRow == 1)
 						firstRow = 0;
 					else
@@ -3706,10 +3421,10 @@ int ej_wl_auth_list(int eid, webs_t wp, int argc, char_t **argv) {
 
 					ret += websWrite(wp, "\"%s\"", ether_etoa((void *)&auth->ea[ii], ea));
 
-					value = (find_ethaddr_in_list((void *)&auth->ea[ii], assoc))?"Yes":"No";
+					value = (sta->flags & WL_STA_ASSOC) ? "Yes" : "No";
 					ret += websWrite(wp, ", \"%s\"", value);
 
-					value = (find_ethaddr_in_list((void *)&auth->ea[ii], authorized))?"Yes":"No";
+					value = (sta->flags & WL_STA_AUTHO) ? "Yes" : "No";
 					ret += websWrite(wp, ", \"%s\"", value);
 
 					ret += websWrite(wp, "]");
@@ -3723,8 +3438,6 @@ int ej_wl_auth_list(int eid, webs_t wp, int argc, char_t **argv) {
 	/* error/exit */
 exit:
 	if(auth) free(auth);
-	if(assoc) free(assoc);
-	if(authorized) free(authorized);
 	//if(wme) free(wme);
 
 	return ret;
@@ -3943,8 +3656,15 @@ ej_wl_scan_5g(int eid, webs_t wp, int argc, char_t **argv)
 }
 #endif
 
+#ifdef RTAC3200
+int
+ej_wl_scan_5g_2(int eid, webs_t wp, int argc, char_t **argv)
+{
+	return wl_scan(eid, wp, argc, argv, 2);
+}
+#endif
+
 #ifdef RTCONFIG_PROXYSTA
-#define	MAX_STA_COUNT	128
 #define	NVRAM_BUFSIZE	100
 
 static int
@@ -4009,6 +3729,8 @@ ej_wl_auth_psta(int eid, webs_t wp, int argc, char_t **argv)
 	if (!mac_list)
 		goto PSTA_ERR;
 
+	memset(mac_list, 0, mac_list_size);
+
 	/* query wl for authenticated sta list */
 	strcpy((char*)mac_list, "authe_sta_list");
 	if (wl_ioctl(name, WLC_GET_VAR, mac_list, mac_list_size)) {
@@ -4054,3 +3776,529 @@ PSTA_ERR:
 	return retval;
 }
 #endif
+
+
+int
+ej_wl_status_2g_array(int eid, webs_t wp, int argc, char_t **argv)
+{
+	int retval = 0;
+	int ii = 0;
+	char nv_param[NVRAM_MAX_PARAM_LEN];
+	char *temp;
+
+	for (ii = 0; ii < DEV_NUMIFS; ii++) {
+		sprintf(nv_param, "wl%d_unit", ii);
+		temp = nvram_get(nv_param);
+
+		if (temp && strlen(temp) > 0)
+		{
+			retval += ej_wl_status_array(eid, wp, argc, argv, ii);
+			retval += websWrite(wp, "\n");
+		}
+	}
+
+	return retval;
+}
+
+static int
+dump_bss_info_array(int eid, webs_t wp, int argc, char_t **argv, wl_bss_info_t *bi)
+{
+	char ssidbuf[SSID_FMT_BUF_LEN];
+	char chspec_str[CHANSPEC_STR_LEN];
+	wl_bss_info_107_t *old_bi;
+	int retval = 0;
+
+	/* Convert version 107 to 109 */
+	if (dtoh32(bi->version) == LEGACY_WL_BSS_INFO_VERSION) {
+		old_bi = (wl_bss_info_107_t *)bi;
+		bi->chanspec = CH20MHZ_CHSPEC(old_bi->channel);
+		bi->ie_length = old_bi->ie_length;
+		bi->ie_offset = sizeof(wl_bss_info_107_t);
+	} else {
+		/* do endian swap and format conversion for chanspec if we have
+		* not created it from legacy bi above
+		*/
+		bi->chanspec = wl_chspec_from_driver(bi->chanspec);
+	}
+
+	wl_format_ssid(ssidbuf, bi->SSID, bi->SSID_len);
+
+	retval += websWrite(wp, "\"%s\",", ssidbuf);
+	retval += websWrite(wp, "\"%d\",", (int16)(dtoh16(bi->RSSI)));
+
+	/*
+	 * SNR has valid value in only 109 version.
+	 * So print SNR for 109 version only.
+	 */
+	if (dtoh32(bi->version) == WL_BSS_INFO_VERSION) {
+		retval += websWrite(wp, "\"%d\",", (int16)(dtoh16(bi->SNR)));
+	} else {
+		retval += websWrite(wp, "\"?\",");
+	}
+
+	retval += websWrite(wp, "\"%d\",", bi->phy_noise);
+	retval += websWrite(wp, "\"%s\",", wf_chspec_ntoa(dtohchanspec(bi->chanspec), chspec_str));
+	retval += websWrite(wp, "\"%s\",", wl_ether_etoa(&bi->BSSID));
+
+	return retval;
+}
+
+static int
+wl_status_array(int eid, webs_t wp, int argc, char_t **argv, int unit)
+{
+	int ret;
+	struct ether_addr bssid;
+	wlc_ssid_t ssid;
+	char ssidbuf[SSID_FMT_BUF_LEN];
+	wl_bss_info_t *bi;
+	int retval = 0;
+	char tmp[128], prefix[] = "wlXXXXXXXXXX_";
+	char *name;
+
+	snprintf(prefix, sizeof(prefix), "wl%d_", unit);
+	name = nvram_safe_get(strcat_r(prefix, "ifname", tmp));
+
+	if ((ret = wl_ioctl(name, WLC_GET_BSSID, &bssid, ETHER_ADDR_LEN)) == 0) {
+		/* The adapter is associated. */
+		*(uint32*)buf = htod32(WLC_IOCTL_MAXLEN);
+		if ((ret = wl_ioctl(name, WLC_GET_BSS_INFO, buf, WLC_IOCTL_MAXLEN)) < 0) {
+			retval += websWrite(wp, "\"?\",\"?\",\"?\",\"?\",\"?\",\"?\",");
+			return retval;
+		}
+		bi = (wl_bss_info_t*)(buf + 4);
+		if (dtoh32(bi->version) == WL_BSS_INFO_VERSION ||
+		    dtoh32(bi->version) == LEGACY2_WL_BSS_INFO_VERSION ||
+		    dtoh32(bi->version) == LEGACY_WL_BSS_INFO_VERSION)
+			retval += dump_bss_info_array(eid, wp, argc, argv, bi);
+		else
+			retval += websWrite(wp, "\"<error>\",\"\",\"\",\"\",\"\",\"\",");
+	} else {
+		retval += websWrite(wp, "\"Not associated. Last with ");
+
+		if ((ret = wl_ioctl(name, WLC_GET_SSID, &ssid, sizeof(wlc_ssid_t))) < 0) {
+			retval += websWrite(wp, "<unknown>\",\"\",\"\",\"\",\"\",\"\",");
+			return 0;
+		}
+
+		wl_format_ssid(ssidbuf, ssid.SSID, dtoh32(ssid.SSID_len));
+		retval += websWrite(wp, "%s\",\"\",\"\",\"\",\"\",\"\",", ssidbuf);
+	}
+
+	return retval;
+}
+
+int
+ej_wl_status_array(int eid, webs_t wp, int argc, char_t **argv, int unit)
+{
+	char tmp[128], prefix[] = "wlXXXXXXXXXX_";
+	char *name;
+	char name_vif[] = "wlX.Y_XXXXXXXXXX";
+	struct maclist *auth;
+	int mac_list_size;
+	int i, ii, val = 0, ret = 0;
+	char *arplist = NULL, *arplistptr;
+	char *leaselist = NULL, *leaselistptr;
+	char hostnameentry[16];
+	char ipentry[40], macentry[18];
+	int found, noclients = 0;
+	char rxrate[12], txrate[12];
+	char ea[ETHER_ADDR_STR_LEN];
+	scb_val_t scb_val;
+	int hr, min, sec;
+	sta_info_t *sta;
+
+	snprintf(prefix, sizeof(prefix), "wl%d_", unit);
+
+#ifdef RTCONFIG_PROXYSTA
+	if (psta_exist_except(unit))
+	{
+		if (unit == 1)
+			ret += websWrite(wp, "dataarray5 = [];wificlients5 = [];");
+		else if (unit == 2)
+			ret += websWrite(wp, "dataarray52 = [];wificlients52 = [];");
+		else
+			ret += websWrite(wp, "dataarray24 = [];wificlients24 = [];");
+		return ret;
+	}
+#endif
+
+	name = nvram_safe_get(strcat_r(prefix, "ifname", tmp));
+#ifdef RTCONFIG_QTN
+	if (unit && rpc_qtn_ready())
+	{
+		ret = qcsapi_wifi_rfstatus(WIFINAME, (qcsapi_unsigned_int *) &val);
+		if (ret < 0) {
+			ret += websWrite(wp, "dataarray5 = [];wificlients5 = [];");
+			dbG("qcsapi_wifi_rfstatus error, return: %d\n", ret);
+		}
+		else
+			val = !val;
+	}
+	else
+#endif
+	{
+		wl_ioctl(name, WLC_GET_RADIO, &val, sizeof(val));
+		val &= WL_RADIO_SW_DISABLE | WL_RADIO_HW_DISABLE;
+	}
+#ifdef RTCONFIG_QTN
+	if (unit && !rpc_qtn_ready())
+	{
+		ret += websWrite(wp, "dataarray5 = [];wificlients5 = [];");
+		return ret;
+	}
+	else
+#endif
+	if (val)
+	{
+		if (unit == 1)
+			ret += websWrite(wp, "dataarray5 = [];wificlients5 = [];");
+		else if (unit == 2)
+			ret += websWrite(wp, "dataarray52 = [];wificlients52 = [];");
+		else
+			ret += websWrite(wp, "dataarray24 = [];wificlients24 = [];");
+		return ret;
+	}
+
+	if (unit == 1)
+		ret += websWrite(wp, "dataarray5 = [");
+	else if (unit == 2)
+		ret += websWrite(wp, "dataarray52 = [");
+	else
+		ret += websWrite(wp, "dataarray24 = [");
+
+	if (nvram_match(strcat_r(prefix, "mode", tmp), "wds")) {
+		ret += websWrite(wp, "\"\",\"\",\"\",\"\",\"%d\",\"\",", wl_control_channel(unit));
+	}
+	else {
+#ifdef RTCONFIG_QTN
+		if (unit)
+			ret += wl_status_5g_array(eid, wp, argc, argv);
+		else
+#endif
+		ret += wl_status_array(eid, wp, argc, argv, unit);
+	}
+
+	if (nvram_match(strcat_r(prefix, "mode", tmp), "ap"))
+	{
+		if (nvram_match(strcat_r(prefix, "lazywds", tmp), "1") ||
+			nvram_invmatch(strcat_r(prefix, "wds", tmp), ""))
+			ret += websWrite(wp, "\"Hybrid\"");
+		else	ret += websWrite(wp, "\"AP\"");
+	}
+	else if (nvram_match(strcat_r(prefix, "mode", tmp), "wds"))
+	{
+		ret += websWrite(wp, "\"WDS\"");
+		noclients = 1;
+	}
+	else if (nvram_match(strcat_r(prefix, "mode", tmp), "sta"))
+	{
+		ret += websWrite(wp, "\"Stations\"");
+		noclients = 1;
+	}
+	else if (nvram_match(strcat_r(prefix, "mode", tmp), "wet"))
+	{
+#ifdef RTCONFIG_WIRELESSREPEATER
+		if ((nvram_get_int("sw_mode") == SW_MODE_REPEATER)
+			&& (nvram_get_int("wlc_band") == unit))
+			sprintf(prefix, "wl%d.%d_", unit, 1);
+#endif
+		ret += websWrite(wp, "\"Repeater ( SSID local: %s )\"", nvram_safe_get(strcat_r(prefix, "ssid", tmp)));
+	}
+#ifdef RTCONFIG_PROXYSTA
+	else if (nvram_match(strcat_r(prefix, "mode", tmp), "psta"))
+	{
+		if ((nvram_get_int("sw_mode") == SW_MODE_AP) &&
+			(nvram_get_int("wlc_psta") == 1) &&
+			(nvram_get_int("wlc_band") == unit))
+		ret += websWrite(wp, "\"Media Bridge\"");
+	}
+#endif
+
+// Close dataarray
+	ret += websWrite(wp, "];\n");
+
+	if (noclients) {
+		if (unit == 1)
+			ret += websWrite(wp, "wificlients5 = [];");
+		else if (unit == 2)
+			ret += websWrite(wp, "wificlients52 = [];");
+		else
+			ret += websWrite(wp, "wificlients24 = [];");
+		return ret;
+	}
+// Open client array
+	if (unit == 1)
+		ret += websWrite(wp, "wificlients5 = [");
+	else if (unit == 2)
+		ret += websWrite(wp, "wificlients52 = [");
+	else
+		ret += websWrite(wp, "wificlients24 = [");
+
+	#ifdef RTCONFIG_QTN
+	if (unit && rpc_qtn_ready())
+	{
+		ret += ej_wl_status_5g_array(eid, wp, argc, argv);
+		ret += websWrite(wp, "\"-1\"];");
+		return ret;
+	}
+#endif
+
+
+
+#ifdef RTCONFIG_WIRELESSREPEATER
+	if ((nvram_get_int("sw_mode") == SW_MODE_REPEATER)
+		&& (nvram_get_int("wlc_band") == unit))
+	{
+		sprintf(name_vif, "wl%d.%d", unit, 1);
+		name = name_vif;
+	}
+#endif
+
+	/* buffers and length */
+	mac_list_size = sizeof(auth->count) + MAX_STA_COUNT * sizeof(struct ether_addr);
+	auth = malloc(mac_list_size);
+
+	if (!auth)
+		goto exit;
+
+	memset(auth, 0, mac_list_size);
+
+	/* query wl for authenticated sta list */
+	strcpy((char*)auth, "authe_sta_list");
+	if (wl_ioctl(name, WLC_GET_VAR, auth, mac_list_size))
+		goto exit;
+
+	/* Obtain mac + IP list */
+	arplist = read_whole_file("/proc/net/arp");
+	/* Obtain lease list - we still need the arp list for
+	   cases where a device uses a static IP rather than DHCP */
+	leaselist = read_whole_file("/var/lib/misc/dnsmasq.leases");
+
+	/* build authenticated sta list */
+	for (i = 0; i < auth->count; i ++) {
+		sta = wl_sta_info(name, &auth->ea[i]);
+		if (!sta) continue;
+
+		ret += websWrite(wp, "[\"%s\",", ether_etoa((void *)&auth->ea[i], ea));
+
+		found = 0;
+		if (arplist) {
+			arplistptr = arplist;
+
+			while ((arplistptr < arplist+strlen(arplist)-2) && (sscanf(arplistptr,"%15s %*s %*s %17s",ipentry,macentry) == 2)) {
+				if (upper_strcmp(macentry, ether_etoa((void *)&auth->ea[i], ea)) == 0) {
+					found = 1;
+					break;
+				} else {
+					arplistptr = strstr(arplistptr,"\n")+1;
+				}
+			}
+
+			if (found || !leaselist) {
+				ret += websWrite(wp, "\"%s\",", (found ? ipentry : ""));
+			}
+		} else {
+			ret += websWrite(wp, "\"<unknown>\",");
+		}
+
+		// Retrieve hostname from dnsmasq leases
+		if (leaselist) {
+			leaselistptr = leaselist;
+
+			while ((leaselistptr < leaselist+strlen(leaselist)-2) && (sscanf(leaselistptr,"%*s %17s %15s %15s %*s", macentry, ipentry, hostnameentry) == 3)) {
+				if (upper_strcmp(macentry, ether_etoa((void *)&auth->ea[i], ea)) == 0) {
+					found += 2;
+					break;
+				} else {
+					leaselistptr = strstr(leaselistptr,"\n")+1;
+				}
+			}
+			if (found == 0) {
+				// Not in arplist nor in leaselist
+				ret += websWrite(wp, "\"<not found>\",\"<not found>\",");
+			} else if (found == 1) {
+				// Only in arplist (static IP)
+				ret += websWrite(wp, "\"<not found>\",");
+			} else if (found == 2) {
+				// Only in leaselist (dynamic IP that has not communicated with router for a while)
+				ret += websWrite(wp, "\"%s\", \"%s\",", ipentry, hostnameentry);
+			} else if (found == 3) {
+				// In both arplist and leaselist (dynamic IP)
+				ret += websWrite(wp, "\"%s\",", hostnameentry);
+			}
+		} else {
+			ret += websWrite(wp, "\"<unknown>\",");
+		}
+
+// RSSI
+		memcpy(&scb_val.ea, &auth->ea[i], ETHER_ADDR_LEN);
+		if (wl_ioctl(name, WLC_GET_RSSI, &scb_val, sizeof(scb_val_t)))
+			ret += websWrite(wp, "\"?\",");
+		else
+			ret += websWrite(wp, "\"%d\",", scb_val.val);
+
+		if (sta->flags & WL_STA_SCBSTATS)
+		{
+// Rate
+			if ((int)sta->rx_rate > 0)
+				sprintf(rxrate,"%d", sta->rx_rate / 1000);
+			else
+				strcpy(rxrate,"??");
+
+			if ((int)sta->tx_rate > 0)
+				sprintf(txrate,"%d", sta->tx_rate / 1000);
+			else
+				sprintf(rxrate,"??");
+
+			ret += websWrite(wp, "\"%s\", \"%s\",", rxrate, txrate);
+
+// Connect time
+			hr = sta->in / 3600;
+			min = (sta->in % 3600) / 60;
+			sec = sta->in - hr * 3600 - min * 60;
+			ret += websWrite(wp, "\"%3d:%02d:%02d\",", hr, min, sec);
+
+// Flags
+#ifdef RTCONFIG_BCMARM
+			ret += websWrite(wp, "\"%s%s%s",
+				(sta->flags & WL_STA_PS) ? "P" : " ",
+				((sta->ht_capabilities & WL_STA_CAP_SHORT_GI_20) || (sta->ht_capabilities & WL_STA_CAP_SHORT_GI_40)) ? "S" : " ",
+				((sta->ht_capabilities & WL_STA_CAP_TX_STBC) || (sta->ht_capabilities & WL_STA_CAP_RX_STBC_MASK)) ? "T" : " ");
+#else
+			ret += websWrite(wp, "\"%s",
+				(sta->flags & WL_STA_PS) ? "P" : " ");
+#endif
+		}
+		ret += websWrite(wp, "%s%s\"],",
+			(sta->flags & WL_STA_ASSOC) ? "A" : " ",
+			(sta->flags & WL_STA_AUTHO) ? "U" : " ");
+	}
+
+	for (i = 1; i < 4; i++) {
+#ifdef RTCONFIG_WIRELESSREPEATER
+		if ((nvram_get_int("sw_mode") == SW_MODE_REPEATER)
+			&& (unit == nvram_get_int("wlc_band")) && (i == 1))
+			break;
+#endif
+		sprintf(prefix, "wl%d.%d_", unit, i);
+		if (nvram_match(strcat_r(prefix, "bss_enabled", tmp), "1"))
+		{
+			sprintf(name_vif, "wl%d.%d", unit, i);
+			memset(auth, 0, mac_list_size);
+
+			/* query wl for authenticated sta list */
+			strcpy((char*)auth, "authe_sta_list");
+			if (wl_ioctl(name_vif, WLC_GET_VAR, auth, mac_list_size))
+				goto exit;
+
+			for (ii = 0; ii < auth->count; ii++) {
+				sta = wl_sta_info(name_vif, &auth->ea[ii]);
+				if (!sta) continue;
+
+				ret += websWrite(wp, "[\"%s\",", ether_etoa((void *)&auth->ea[ii], ea));
+
+				found = 0;
+				if (arplist) {
+					arplistptr = arplist;
+
+					while ((arplistptr < arplist+strlen(arplist)-2) && (sscanf(arplistptr,"%15s %*s %*s %17s",ipentry,macentry) == 2)) {
+						if (upper_strcmp(macentry, ether_etoa((void *)&auth->ea[ii], ea)) == 0) {
+							found = 1;
+							break;
+						} else {
+							arplistptr = strstr(arplistptr,"\n")+1;
+						}
+					}
+
+					if (found || !leaselist) {
+						ret += websWrite(wp, "\"%s\",", (found ? ipentry : ""));
+					}
+				} else {
+					ret += websWrite(wp, "\"<unknown>\",");
+				}
+
+				// Retrieve hostname from dnsmasq leases
+				if (leaselist) {
+					leaselistptr = leaselist;
+
+					while ((leaselistptr < leaselist+strlen(leaselist)-2) && (sscanf(leaselistptr,"%*s %17s %15s %15s %*s", macentry, ipentry, hostnameentry) == 3)) {
+						if (upper_strcmp(macentry, ether_etoa((void *)&auth->ea[ii], ea)) == 0) {
+							found += 2;
+							break;
+						} else {
+							leaselistptr = strstr(leaselistptr,"\n")+1;
+						}
+					}
+					if (found == 0) {
+						// Not in arplist nor in leaselist
+						ret += websWrite(wp, "\"<not found>\",\"<not found>\",");
+					} else if (found == 1) {
+						// Only in arplist (static IP)
+						ret += websWrite(wp, "\"<not found>\",");
+					} else if (found == 2) {
+						// Only in leaselist (dynamic IP that has not communicated with router for a while)
+						ret += websWrite(wp, "\"%s\",\"%s\",", ipentry, hostnameentry);
+					} else if (found == 3) {
+						// In both arplist and leaselist (dynamic IP)
+						ret += websWrite(wp, "\"%s\",", hostnameentry);
+					}
+				} else {
+					ret += websWrite(wp, "\"<unknown>\",");
+				}
+
+// RSSI
+				memcpy(&scb_val.ea, &auth->ea[ii], ETHER_ADDR_LEN);
+				if (wl_ioctl(name_vif, WLC_GET_RSSI, &scb_val, sizeof(scb_val_t)))
+					ret += websWrite(wp, "\"?\",");
+				else
+					ret += websWrite(wp, "\"%d\",", scb_val.val);
+
+				if (sta->flags & WL_STA_SCBSTATS)
+				{
+// Rate
+					if ((int)sta->rx_rate > 0)
+						sprintf(rxrate,"%d", sta->rx_rate / 1000);
+					else
+						strcpy(rxrate,"??");
+
+					if ((int)sta->tx_rate > 0)
+						sprintf(txrate,"%d", sta->tx_rate / 1000);
+					else
+						sprintf(rxrate,"??");
+
+					ret += websWrite(wp, "\"%s\",\"%s\",", rxrate, txrate);
+
+// Connect time
+					hr = sta->in / 3600;
+					min = (sta->in % 3600) / 60;
+					sec = sta->in - hr * 3600 - min * 60;
+					ret += websWrite(wp, "\"%3d:%02d:%02d\",", hr, min, sec);
+
+// Flags
+#ifdef RTCONFIG_BCMARM
+					ret += websWrite(wp, "\"%s%s%s",
+						(sta->flags & WL_STA_PS) ? "P" : " ",
+						((sta->ht_capabilities & WL_STA_CAP_SHORT_GI_20) || (sta->ht_capabilities & WL_STA_CAP_SHORT_GI_40)) ? "S" : " ",
+						((sta->ht_capabilities & WL_STA_CAP_TX_STBC) || (sta->ht_capabilities & WL_STA_CAP_RX_STBC_MASK)) ? "T" : " ");
+#else
+					ret += websWrite(wp, "\"%s",
+						(sta->flags & WL_STA_PS) ? "P" : " ");
+#endif
+				}
+
+// Auth/Ass (and Guest) flags
+				ret += websWrite(wp, "%s%sG\"],",
+					(sta->flags & WL_STA_ASSOC) ? "A" : " ",
+					(sta->flags & WL_STA_AUTHO) ? "U" : " ");
+			}
+		}
+	}
+	ret += websWrite(wp, "\"-1\"];");
+	/* error/exit */
+exit:
+	if (auth) free(auth);
+	if (arplist) free(arplist);
+	if (leaselist) free(leaselist);
+
+	return ret;
+}

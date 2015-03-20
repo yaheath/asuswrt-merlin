@@ -12,8 +12,8 @@ PROGS += write_webdav_conf
 endif
 
 CFLAGS += -fPIC $(EXTRACFLAGS)
-CFLAGS += -I. -I$(TOP)/shared -I$(SRCBASE)/include -I$(LINUXDIR)/include -Wall
-LDFLAGS_SO += -L$(TOP)/nvram${BCMEX} -lnvram -L$(TOP)/shared -lshared
+CFLAGS += -I. -I$(TOP)/shared -I$(SRCBASE)/include -I$(KERNEL_HEADER_DIR) -Wall
+LDFLAGS_SO = -L$(TOP)/nvram${BCMEX} -lnvram -L$(TOP)/shared -lshared
 LDFLAGS += $(LDFLAGS_SO) -L. -ldisk
 ifeq ($(RTCONFIG_BCMARM),y)
 CFLAGS += -I$(SRCBASE)/common/include

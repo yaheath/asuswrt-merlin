@@ -32,6 +32,9 @@
 #include "shutils.h"
 #include "shared.h"
 
+#ifndef ETHER_ADDR_LEN
+#define	ETHER_ADDR_LEN		6
+#endif
 
 extern char *read_whole_file(const char *target){
 	FILE *fp;
@@ -514,86 +517,83 @@ void notice_set(const char *path, const char *format, ...)
 //	#define _x_dprintf(args...)	syslog(LOG_DEBUG, args);
 #define _x_dprintf(args...)	do { } while (0);
 
-#ifdef REMOVE
-const dns_list_t *get_dns(void)
-{
-	static dns_list_t dns;
-	char s[512];
-	int n;
-	int i, j;
-	struct in_addr ia;
-	char d[4][22];
-	unsigned short port;
-	char *c;
-
-	dns.count = 0;
-
-	strlcpy(s, nvram_safe_get("wan_dns"), sizeof(s));
-	if ((nvram_get_int("dns_addget")) || (s[0] == 0)) {
-		n = strlen(s);
-		snprintf(s + n, sizeof(s) - n, " %s", nvram_safe_get("wan_get_dns"));
-	}
-
-	n = sscanf(s, "%21s %21s %21s %21s", d[0], d[1], d[2], d[3]);
-	for (i = 0; i < n; ++i) {
-		port = 53;
-
-		if ((c = strchr(d[i], ':')) != NULL) {
-			*c++ = 0;
-			if (((j = atoi(c)) < 1) || (j > 0xFFFF)) continue;
-			port = j;
-		}
-
-		if (inet_pton(AF_INET, d[i], &ia) > 0) {
-			for (j = dns.count - 1; j >= 0; --j) {
-				if ((dns.dns[j].addr.s_addr == ia.s_addr) && (dns.dns[j].port == port)) break;
-			}
-			if (j < 0) {
-				dns.dns[dns.count].port = port;
-				dns.dns[dns.count++].addr.s_addr = ia.s_addr;
-				if (dns.count == 3) break;
-			}
-		}
-	}
-
-	return &dns;
-}
-#endif
 
 // -----------------------------------------------------------------------------
+#define ACT_COMM_LEN	20
+struct action_s {
+	char comm[ACT_COMM_LEN];
+	pid_t pid;
+	int action;
+};
 
 void set_action(int a)
 {
-	_dprintf("set_action %d\n", a);
-
 	int r = 3;
-	while (f_write("/var/lock/action", &a, sizeof(a), 0, 0) != sizeof(a)) {
+	struct action_s act;
+	char *s, *p, stat[sizeof("/proc/XXXXXX/statXXXXXX")];
+
+	act.action = a;
+	act.pid = getpid();
+	snprintf(stat, sizeof(stat), "/proc/%d/stat", act.pid);
+	s = file2str(stat);
+	if (s) {
+		if ((p = strrchr(s, ')')) != NULL)
+			*p = '\0';
+		if ((p = strchr(s, '(')) != NULL)
+			snprintf(act.comm, sizeof(act.comm), "%s", ++p);
+		free(s);
+		s = (p && *act.comm) ? act.comm : NULL;
+	}
+	if (!s)
+		snprintf(act.comm, sizeof(act.comm), "%d <UNKNOWN>", act.pid);
+	_dprintf("%d: set_action %d\n", getpid(), act.action);
+	while (f_write_excl(ACTION_LOCK, &act, sizeof(act), 0, 0600) != sizeof(act)) {
 		sleep(1);
 		if (--r == 0) return;
 	}
 	if (a != ACT_IDLE) sleep(2);
 }
 
-int check_action(void)
+static int __check_action(struct action_s *pa)
 {
-	int a;
 	int r = 3;
+	struct action_s act;
 
-	while (f_read("/var/lock/action", &a, sizeof(a)) != sizeof(a)) {
+	while (f_read_excl(ACTION_LOCK, &act, sizeof(act)) != sizeof(act)) {
 		sleep(1);
 		if (--r == 0) return ACT_UNKNOWN;
 	}
-	_dprintf("check_action %d\n", a);
+	if (pa)
+		*pa = act;
+	_dprintf("%d: check_action %d\n", getpid(), act.action);
 
-	return a;
+	return act.action;
+}
+
+int check_action(void)
+{
+	return __check_action(NULL);
 }
 
 int wait_action_idle(int n)
 {
+	int r;
+	struct action_s act;
+
 	while (n-- > 0) {
-		if (check_action() == ACT_IDLE) return 1;
+		act.pid = 0;
+		if (__check_action(&act) == ACT_IDLE) return 1;
+		if (act.pid > 0 && !process_exists(act.pid)) {
+			if (!(r = unlink(ACTION_LOCK)) || errno == ENOENT) {
+				_dprintf("Terminated process, pid %d %s, hold action lock %d !!!\n",
+					act.pid, act.comm, act.action);
+				return 1;
+			}
+			_dprintf("Remove " ACTION_LOCK " failed. errno %d (%s)\n", errno, strerror(errno));
+		}
 		sleep(1);
 	}
+	_dprintf("pid %d %s hold action lock %d !!!\n", act.pid, act.comm, act.action);
 	return 0;
 }
 
@@ -666,12 +666,11 @@ int update_6rd_info(void)
 }
 #endif
 
-const char *getifaddr(char *ifname, int family, int flags)
+const char *_getifaddr(char *ifname, int family, int flags, char *buf, int size)
 {
-	static char buf[INET6_ADDRSTRLEN];
 	struct ifaddrs *ifap, *ifa;
 	unsigned char *addr, *netmask;
-	unsigned char i, maxlen = 0;
+	unsigned char len, maxlen;
 
 	if (getifaddrs(&ifap) != 0) {
 		_dprintf("getifaddrs failed: %s\n", strerror(errno));
@@ -686,33 +685,45 @@ const char *getifaddr(char *ifname, int family, int flags)
 
 		switch (ifa->ifa_addr->sa_family) {
 #ifdef RTCONFIG_IPV6
-		case AF_INET6: {
+		case AF_INET6:
 			addr = (void *) &((struct sockaddr_in6 *) ifa->ifa_addr)->sin6_addr;
-			netmask = (void *) &((struct sockaddr_in6 *) ifa->ifa_netmask)->sin6_addr;
-			maxlen = 128;
 			if (IN6_IS_ADDR_LINKLOCAL(addr) ^ !!(flags & GIF_LINKLOCAL))
 				continue;
+			netmask = (void *) &((struct sockaddr_in6 *) ifa->ifa_netmask)->sin6_addr;
+			maxlen = 128;
 			break;
-		}
 #endif
-		case AF_INET: {
+		case AF_INET:
 			addr = (void *) &((struct sockaddr_in *) ifa->ifa_addr)->sin_addr;
 			netmask = (void *) &((struct sockaddr_in *) ifa->ifa_netmask)->sin_addr;
 			maxlen = 32;
 			break;
-		}
 		default:
 			continue;
 		}
 
-		if (addr && inet_ntop(ifa->ifa_addr->sa_family, addr, buf, sizeof(buf)) != NULL) {
+		if (addr && inet_ntop(ifa->ifa_addr->sa_family, addr, buf, size) != NULL) {
 			if (netmask && (flags & GIF_PREFIXLEN)) {
-				int len = 0;
-				for (i = 0; netmask[i] != 0 && len < maxlen; i++)
-					len += (9 - ffs(netmask[i]));
+				for (len = 0; len < maxlen && *netmask == 0xff; netmask++)
+					len += 8;
+				if (len < maxlen && *netmask) {
+					switch(*netmask) {
+					case 0xfe: len += 7; break;
+					case 0xfc: len += 6; break;
+					case 0xf8: len += 5; break;
+					case 0xf0: len += 4; break;
+					case 0xe0: len += 3; break;
+					case 0xc0: len += 2; break;
+					case 0x80: len += 1; break;
+					default:
+						_dprintf("getifaddrs netmask error: %x\n", *netmask);
+						goto error;
+					}
+				}
 				if (len < maxlen) {
-					i = strlen(buf);
-					snprintf(&buf[i], sizeof(buf)-i, "/%d", len);
+					netmask = memchr(buf, 0, size);
+					if (netmask)
+						snprintf(netmask, size - ((char *) netmask - buf), "/%d", len);
 				}
 			}
 			freeifaddrs(ifap);
@@ -720,9 +731,18 @@ const char *getifaddr(char *ifname, int family, int flags)
 		}
 	}
 
+error:
 	freeifaddrs(ifap);
 	return NULL;
 }
+
+const char *getifaddr(char *ifname, int family, int flags)
+{
+	static char buf[INET6_ADDRSTRLEN];
+
+	return _getifaddr(ifname, family, flags, buf, sizeof(buf));
+}
+
 
 int is_intf_up(const char* ifname)
 {
@@ -1005,6 +1025,7 @@ void bcmvlan_models(int model, char *vlan)
 {
 	switch (model) {
 	case MODEL_DSLAC68U:
+	case MODEL_RPAC68U:
 	case MODEL_RTAC68U:
 	case MODEL_RTAC87U:
 	case MODEL_RTAC56S:
@@ -1016,6 +1037,7 @@ void bcmvlan_models(int model, char *vlan)
 	case MODEL_RTN15U:
 	case MODEL_RTAC53U:
 	case MODEL_RTAC3200:
+	case MODEL_RTAC88U:
 		strcpy(vlan, "vlan1");
 		break;
 	case MODEL_RTN53:
@@ -1054,14 +1076,15 @@ long backup_rx = 0;
 long backup_tx = 0;
 int backup_set = 0;
 
-unsigned int netdev_calc(char *ifname, char *ifname_desc, unsigned long *rx, unsigned long *tx, char *ifname_desc2, unsigned long *rx2, unsigned long *tx2)
+unsigned int netdev_calc(char *ifname, char *ifname_desc, unsigned long *rx, unsigned long *tx, char *ifname_desc2, unsigned long *rx2, unsigned long *tx2
+)		
 {
 	char word[100], word1[100], *next, *next1;
 	char tmp[100];
 	char modelvlan[32];
 	int i, j, model, unit;
-
 	strcpy(ifname_desc2, "");
+
 	model = get_model();
 	bcmvlan_models(model, modelvlan);
 
@@ -1114,7 +1137,7 @@ unsigned int netdev_calc(char *ifname, char *ifname_desc, unsigned long *rx, uns
 						}
 						j++;
 					}
-					sprintf(ifname_desc, "WIRELESS%d.%d", 0, j);
+				sprintf(ifname_desc, "WIRELESS%d.%d", 0, j);
 					return 1;
 				}
 				i++;
@@ -1132,17 +1155,28 @@ unsigned int netdev_calc(char *ifname, char *ifname_desc, unsigned long *rx, uns
 		// pretend vlanX is must called after ethX
 		if(nvram_match("switch_wantag", "none")) { //Don't calc if select IPTV
 			if(backup_set && strlen(modelvlan) && strcmp(ifname, modelvlan)==0) {
+				backup_set  = 0;
 				backup_rx -= *rx;
 				backup_tx -= *tx;
 
 				*rx2 = backup_rx;
 				*tx2 = backup_tx;				
-				strcpy(ifname_desc2, "INTERNET");
+				/* Cherry Cho modified for RT-AC3200 Bug#202 in 2014/11/4. */	
+				unit = get_wan_unit("eth0");
+#ifdef RTCONFIG_DUALWAN
+				if (((nvram_match("wans_mode", "fo") || nvram_match("wans_mode", "fb")) && (unit == wan_primary_ifunit())) || 
+					nvram_match("wans_mode", "lb"))
+#endif	/* RTCONFIG_DUALWAN */
+				{
+					if (unit == WAN_UNIT_FIRST)
+						strcpy(ifname_desc2, "INTERNET");
+					else
+						sprintf(ifname_desc2,"INTERNET%d", unit);
+				}	
 
-				// Always reset.
-				backup_set = 0;
 			}
 		}//End of switch_wantag
+
 		return 1;
 	}
 	// find bridge interface
@@ -1152,29 +1186,51 @@ unsigned int netdev_calc(char *ifname, char *ifname_desc, unsigned long *rx, uns
 		return 1;
 	}
 	// find in WAN interface
-	else if (ifname && (unit = get_wan_unit(ifname)) >= 0
-		// Prevent counting both wan%d_ifname and wan%d_pppoe_ifname
-		&& (strcmp(ifname, get_wan_ifname(unit)) == 0))
-	{
+	else if (ifname && (unit = get_wan_unit(ifname)) >= 0)	{
 		if (dualwan_unit__nonusbif(unit)) {
 #if defined(RA_ESW)
+#if defined(RTCONFIG_RALINK_MT7620)
 			get_mt7620_wan_unit_bytecount(unit, tx, rx);
+#elif defined(RTCONFIG_RALINK_MT7621)
+			get_mt7621_wan_unit_bytecount(unit, tx, rx);
+#endif			
 #endif
-
 			if(strlen(modelvlan) && strcmp(ifname, "eth0")==0) {
 				backup_rx = *rx;
 				backup_tx = *tx;
-				backup_set = 1;
+				backup_set  = 1;
 			}
-			else if (unit == wan_primary_ifunit()) {
-				strcpy(ifname_desc, "INTERNET");
-				return 1;
+			else{
+#ifdef RTCONFIG_DUALWAN
+				if (((nvram_match("wans_mode", "fo") || nvram_match("wans_mode", "fb")) && (unit == wan_primary_ifunit())) || 
+					nvram_match("wans_mode", "lb"))
+#endif	/* RTCONFIG_DUALWAN */
+				{
+					if (unit == WAN_UNIT_FIRST) {	
+						strcpy(ifname_desc, "INTERNET");
+						return 1;
+					}
+					else { 
+						sprintf(ifname_desc,"INTERNET%d", unit);
+						return 1;
+					}
+				}
 			}
 		}
 		else if (dualwan_unit__usbif(unit)) {
-			if (unit == wan_primary_ifunit()) {
-				strcpy(ifname_desc, "INTERNET");
-				return 1;
+#ifdef RTCONFIG_DUALWAN
+			if (((nvram_match("wans_mode", "fo") || nvram_match("wans_mode", "fb")) && (unit == wan_primary_ifunit())) || 
+					nvram_match("wans_mode", "lb"))
+#endif	/* RTCONFIG_DUALWAN */
+			{
+				if(unit == WAN_UNIT_FIRST){//Cherry Cho modified in 2014/11/4.
+					strcpy(ifname_desc, "INTERNET");
+					return 1;
+				}
+				else{
+					sprintf(ifname_desc,"INTERNET%d", unit);
+					return 1;
+				}
 			}
 		}
 		else {
@@ -1328,6 +1384,18 @@ char *get_syslog_fname(unsigned int idx)
 	return buf;
 }
 
+#ifdef RTCONFIG_USB_MODEM
+char *get_modemlog_fname(void){
+	char prefix[] = "/tmpXXXXXX";
+	static char buf[PATH_MAX];
+
+	strcpy(prefix, "/tmp");
+	sprintf(buf, "%s/3ginfo.txt", prefix);
+
+	return buf;
+}
+#endif
+
 #ifdef RTCONFIG_BCMWL6
 #ifdef RTCONFIG_PROXYSTA
 int is_psta(int unit)
@@ -1335,7 +1403,11 @@ int is_psta(int unit)
 	if (unit < 0) return 0;
 	if ((nvram_get_int("sw_mode") == SW_MODE_AP) &&
 		(nvram_get_int("wlc_psta") == 1) &&
-		(nvram_get_int("wlc_band") == unit))
+		((nvram_get_int("wlc_band") == unit)
+#ifdef PXYSTA_DUALBAND
+		|| (nvram_match("exband", "1") && nvram_get_int("wlc_band_ex") == unit)
+#endif
+		))
 		return 1;
 
 	return 0;
@@ -1349,7 +1421,11 @@ int is_psr(int unit)
 #endif
 	if ((nvram_get_int("sw_mode") == SW_MODE_AP) &&
 		(nvram_get_int("wlc_psta") == 2) &&
-		(nvram_get_int("wlc_band") == unit))
+		((nvram_get_int("wlc_band") == unit)
+#ifdef PXYSTA_DUALBAND
+		||  (nvram_match("exband", "1") && nvram_get_int("wlc_band_ex") == unit)
+#endif
+		))
 		return 1;
 
 	return 0;
@@ -1374,8 +1450,9 @@ int psta_exist_except(int unit)
 	int idx = 0;
 
 	foreach (word, nvram_safe_get("wl_ifnames"), next) {
-		if (idx == unit) continue;
+		if (idx == unit) goto END;
 		if (is_psta(idx)) return 1;
+END:
 		idx++;
 	}
 
@@ -1388,8 +1465,9 @@ int psr_exist_except(int unit)
 	int idx = 0;
 
 	foreach (word, nvram_safe_get("wl_ifnames"), next) {
-		if (idx == unit) continue;
+		if (idx == unit) goto END;
 		if (is_psr(idx)) return 1;
+END:
 		idx++;
 	}
 
@@ -1508,3 +1586,248 @@ int get_primaryif_dualwan_unit(void)
 	return unit;
 }
 #endif
+
+/* Return WiFi unit number in accordance with interface name.
+ * @wif:	pointer to WiFi interface name.
+ * @return:
+ * 	< 0:	invalid
+ *  otherwise:	unit
+ */
+int get_wifi_unit(char *wif)
+{
+	int i;
+	char word[256], *next, *ifn, nv[20];
+
+	if (!wif || *wif == '\0')
+		return -1;
+	foreach (word, nvram_safe_get("wl_ifnames"), next) {
+		if (strncmp(word, wif, strlen(word)))
+			continue;
+
+		for (i = 0; i <= 1; ++i) {
+			sprintf(nv, "wl%d_ifname", i);
+			ifn = nvram_safe_get(nv);
+			if (!strncmp(word, ifn, strlen(word)))
+				return i;
+		}
+	}
+	return -1;
+}
+
+
+#ifdef RTCONFIG_YANDEXDNS
+int get_yandex_dns(int family, int mode, char **server, int max_count)
+{
+	static const struct {
+		int mode;
+		int family;
+		char *server;
+	} table[] = {
+		{ YADNS_BASIC, AF_INET, "77.88.8.8" },			/* dns.yandex.ru  */
+		{ YADNS_BASIC, AF_INET, "77.88.8.1" },			/* secondary.dns.yandex.ru */
+		{ YADNS_SAFE, AF_INET, "77.88.8.88" },			/* safe.dns.yandex.ru */
+		{ YADNS_SAFE, AF_INET, "77.88.8.2" },			/* secondary.safe.dns.yandex.ru */
+		{ YADNS_FAMILY, AF_INET, "77.88.8.7" },			/* family.dns.yandex.ru */
+		{ YADNS_FAMILY, AF_INET, "77.88.8.3" },			/* secondary.family.dns.yandex.ru */
+#ifdef RTCONFIG_IPV6
+		{ YADNS_BASIC, AF_INET6, "2a02:6b8::feed:0ff" },	/* dns.yandex.ru  */
+		{ YADNS_BASIC, AF_INET6, "2a02:6b8:0:1::feed:0ff" },	/* secondary.dns.yandex.ru */
+		{ YADNS_SAFE, AF_INET6, "2a02:6b8::feed:bad" },		/* safe.dns.yandex.ru */
+		{ YADNS_SAFE, AF_INET6, "2a02:6b8:0:1::feed:bad" },	/* secondary.safe.dns.yandex.ru */
+		{ YADNS_FAMILY, AF_INET6, "2a02:6b8::feed:a11" },	/* family.dns.yandex.ru */
+		{ YADNS_FAMILY, AF_INET6, "2a02:6b8:0:1::feed:a11" },	/* secondary.family.dns.yandex.ru */
+#endif
+	};
+	int i, count = 0;
+
+	if (mode < YADNS_FIRST || mode >= YADNS_COUNT)
+		return -1;
+
+	for (i = 0; i < sizeof(table)/sizeof(table[0]) && count < max_count; i++) {
+		if ((mode == table[i].mode) &&
+		    (family == AF_UNSPEC || family == table[i].family))
+			server[count++] = table[i].server;
+	}
+
+	return count;
+}
+#endif
+
+
+#ifdef RTCONFIG_BWDPI
+/*
+	usage in rc or bwdpi for checking service
+*/
+int check_bwdpi_nvram_setting()
+{
+	int enabled = 1;
+	int debug = nvram_get_int("bwdpi_debug");
+
+	// check no qos service
+	if(nvram_get_int("wrs_enable") == 0 && nvram_get_int("wrs_app_enable") == 0 && 
+		nvram_get_int("wrs_vp_enable") == 0 && nvram_get_int("wrs_cc_enable") == 0 &&
+		nvram_get_int("wrs_mals_enable") == 0 &&
+		nvram_get_int("wrs_adblock_popup") == 0 && nvram_get_int("wrs_adblock_stream") == 0 &&
+		nvram_get_int("bwdpi_db_enable") == 0 &&
+		nvram_get_int("qos_enable") == 0)
+		enabled = 0;
+
+	// check traditional qos service
+	if(nvram_get_int("wrs_enable") == 0 && nvram_get_int("wrs_app_enable") == 0 && 
+		nvram_get_int("wrs_vp_enable") == 0 && nvram_get_int("wrs_cc_enable") == 0 &&
+		nvram_get_int("wrs_mals_enable") == 0 &&
+		nvram_get_int("wrs_adblock_popup") == 0 && nvram_get_int("wrs_adblock_stream") == 0 &&
+		nvram_get_int("bwdpi_db_enable") == 0 &&
+		nvram_get_int("qos_enable") == 1 && nvram_get_int("qos_type") == 0)
+		enabled = 0;
+
+	if(debug) dbg("[check_bwdpi_nvram_setting] enabled= %d\n", enabled);
+
+	return enabled;
+}
+#endif
+
+int get_iface_hwaddr(char *name, unsigned char *hwaddr)
+{
+	struct ifreq ifr;
+	int ret = 0;
+	int s;
+
+	/* open socket to kernel */
+	if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+		perror("socket");
+		return errno;
+	}
+
+	/* do it */
+	strncpy(ifr.ifr_name, name, sizeof(ifr.ifr_name)-1);
+	ifr.ifr_name[sizeof(ifr.ifr_name)-1] = '\0';
+	if ((ret = ioctl(s, SIOCGIFHWADDR, &ifr)) == 0)
+		memcpy(hwaddr, ifr.ifr_hwaddr.sa_data, ETHER_ADDR_LEN);
+
+	/* cleanup */
+	close(s);
+	return ret;
+}
+
+int _xstart(const char *cmd, ...)
+{
+        va_list ap;
+        char *argv[16];
+        int argc;
+        int pid;
+
+        argv[0] = (char *)cmd;
+        argc = 1;
+        va_start(ap, cmd);
+        while ((argv[argc++] = va_arg(ap, char *)) != NULL) {
+                //
+        }
+        va_end(ap);
+
+        return _eval(argv, NULL, 0, &pid);
+}
+
+long fappend(FILE *out, const char *fname)
+{
+	FILE *in;
+	char buf[1024];
+	int n;
+	long r;
+
+	if ((in = fopen(fname, "r")) == NULL) return -1;
+	r = 0;
+	while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
+		if (fwrite(buf, 1, n, out) != n) {
+			r = -1;
+			break;
+		}
+		else {
+			r += n;
+		}
+	}
+	fclose(in);
+	return r;
+}
+
+void run_custom_script(char *name, char *args)
+{
+	char script[120];
+
+	snprintf(script, sizeof(script), "/jffs/scripts/%s", name);
+
+	if(f_exists(script)) {
+		if (nvram_match("jffs2_scripts", "0")) {
+			logmessage("custom script", "Found %s, but custom script execution is disabled!", name);
+			return;
+		}
+		if (args)
+			logmessage("custom script" ,"Running %s (args: %s)", script, args);
+		else
+			logmessage("custom script" ,"Running %s", script);
+		xstart(script, args);
+	}
+}
+
+void run_custom_script_blocking(char *name, char *args)
+{
+	char script[120];
+
+	snprintf(script, sizeof(script), "/jffs/scripts/%s", name);
+
+	if(f_exists(script)) {
+		if (nvram_match("jffs2_scripts", "0")) {
+			logmessage("custom script", "Found %s, but custom script execution is disabled!", name);
+			return;
+		}
+		if (args)
+			logmessage("custom script" ,"Running %s (args: %s)", script, args);
+		else
+			logmessage("custom script" ,"Running %s", script);
+		eval(script, args);
+	}
+
+}
+
+void run_postconf(char *name, char *config)
+{
+	char filename[64];
+
+	snprintf(filename, sizeof (filename), "%s.postconf", name);
+	run_custom_script_blocking(filename, config);
+}
+
+
+void use_custom_config(char *config, char *target)
+{
+        char filename[256];
+
+        snprintf(filename, sizeof(filename), "/jffs/configs/%s", config);
+
+	if (check_if_file_exist(filename)) {
+		if (nvram_match("jffs2_scripts", "0")) {
+			logmessage("custom config", "Found %s, but custom configs are disabled!", filename);
+			return;
+		}
+		logmessage("custom config", "Using custom %s config file.", filename);
+		eval("cp", filename, target, NULL);
+	}
+}
+
+
+void append_custom_config(char *config, FILE *fp)
+{
+	char filename[256];
+
+	snprintf(filename, sizeof(filename), "/jffs/configs/%s.add", config);
+
+	if (check_if_file_exist(filename)) {
+		if (nvram_match("jffs2_scripts", "0")) {
+			logmessage("custom config", "Found %s, but custom configs are disabled!", filename);
+			return;
+		}
+		logmessage("custom config", "Appending content of %s.", filename);
+		fappend(fp, filename);
+	}
+}
+

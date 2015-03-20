@@ -14,7 +14,7 @@
 <script type="text/javascript" src="/popup.js"></script>
 <script type="text/javascript" src="/general.js"></script>
 <script type="text/javascript" src="/help.js"></script>
-<script type="text/javascript" src="/detect.js"></script>
+<script type="text/javascript" src="/validator.js"></script>
 <script type="text/javascript" src="/jquery.js"></script>
 <script type="text/javascript" src="/switcherplugin/jquery.iphone-switch.js"></script>
 <style>
@@ -53,32 +53,17 @@ var custom_name_row = custom_name.split('<');
 var apps_filter = "<% nvram_get("wrs_rulelist"); %>".replace(/&#62/g, ">").replace(/&#60/g, "<");
 var wrs_filter = "<% nvram_get("wrs_rulelist"); %>".replace(/&#62/g, ">").replace(/&#60/g, "<");
 var wrs_app_filter = "<% nvram_get("wrs_app_rulelist"); %>".replace(/&#62/g, ">").replace(/&#60/g, "<");
-/*
-	Hide Web Surfing temporally, there are a lot of marking up variables
-	Jieming added at 2014/07/16
-*/
 
 var wrs_id_array = [["1,2,3,4,5,6,8", "9,10,14,15,16,25,26", "11"],
 					["24", "51", "53,89", "42", ""],
 					["56,70,71", "57"],
 					["", "69", "23"]];
-
-/*var wrs_id_array = [[""],
-					["1,2,3,4,5,6,8", "9,10,14,15,16,25,26", "11"],
-					["24", "51", "53,89", "42", ""],
-					["56,70,71", "57"],
-					["", "69", "23"]];*/
-/*var apps_id_array = [["13"],
-					 ["", "", ""],
-					 ["", "0,15", "", "", "21"],
-					 ["3", "1"],
-					 ["8", "4", ""]];*/					
-var apps_id_array = [["", "", ""],
+				
+var apps_id_array = [["22", "", ""],
 					 ["", "0,6,15", "", "", "21"],
 					 ["3", "1"],
 					 ["8", "4", ""]];					 
 
-var malicious_cat_id = "39,73,74,75,76,77,78,79,80,81,82,83,84,85,86,88,92";
 var over_var = 0;
 var isMenuopen = 0;
 var curState = '<% nvram_get("wrs_enable"); %>';
@@ -86,6 +71,8 @@ var curState = '<% nvram_get("wrs_enable"); %>';
 function initial(){
 	show_menu();
 	//show_inner_tab();
+	document.getElementById("_AiProtection_HomeSecurity").innerHTML = '<table><tbody><tr><td><div class="_AiProtection_HomeSecurity"></div></td><td><div style="width:120px;">AiProtection</div></td></tr></tbody></table>';
+	document.getElementById("_AiProtection_HomeSecurity").className = "menu_clicked";
 	translate_category_id();
 	genMain_table();
 	if('<% nvram_get("wrs_enable"); %>' == 1)
@@ -93,9 +80,7 @@ function initial(){
 	else
 		showhide("list_table",0);
 	
-	showLANIPList();
-		
-		
+	showLANIPList();	
 }
 
 function pullLANIPList(obj){
@@ -228,8 +213,10 @@ function addRow_main(obj, length){
 	var first_catID = 0;
 	var invalid_char = "";
 	var blank_category = 0;
+	var apps_filter_row =  apps_filter.split("<");
+	var apps_filter_col = "";
 	
-	if(!validate_string(document.form.PC_devicename))
+	if(!validator.string(document.form.PC_devicename))
 		return false;
 	
 	if(document.form.PC_devicename.value == ""){
@@ -256,6 +243,16 @@ function addRow_main(obj, length){
 		}
 	}
 	
+	for(i=0;i<apps_filter_row.length;i++){
+		apps_filter_col = apps_filter_row[i].split(">");
+		if(apps_filter_col[1] == document.form.PC_mac.value){
+			alert("<#JS_duplicate#>");
+			document.form.PC_mac.value = "";
+			document.form.PC_devicename.value = "";
+			return false;
+		}
+	}
+	
 	if(blank_category == 0){
 		alert("The Content Category can not be empty");
 		return false;
@@ -268,8 +265,11 @@ function addRow_main(obj, length){
 		apps_filter += "<";
 		apps_filter += enable_checkbox.checked ? 1:0;
 	}	
-	
-	apps_filter += ">" + document.form.PC_mac.value + ">";
+
+	if(document.form.PC_mac.value == "")
+		apps_filter += ">" + document.form.PC_devicename.value + ">";
+	else
+		apps_filter += ">" + document.form.PC_mac.value + ">";
 
 	/* To check which checkbox is checked*/
 	for(i=0; i < category_array.length;i++){
@@ -294,30 +294,19 @@ function addRow_main(obj, length){
 			apps_filter += ">";
 	}
 	
-
-		
+	document.form.PC_mac.value = "";
+	document.form.PC_devicename.value = "";
 	genMain_table();	
 }
 					 
 function genMain_table(){
 	var category_name = ["<#AiProtection_filter_Adult#>", "<#AiProtection_filter_message#>", "<#AiProtection_filter_p2p#>", "<#AiProtection_filter_stream#>"];
-	/*var sub_category_name = [["General Web service"],
-							 ["<#AiProtection_filter_Adult1#>", "<#AiProtection_filter_Adult2#>", "<#AiProtection_filter_Adult3#>"],
-							 ["<#AiProtection_filter_Adult3#>", "<#AiProtection_filter_Adult5#>", "<#AiProtection_filter_Adult6#>", "<#AiProtection_filter_Adult7#>", "<#AiProtection_filter_Adult8#>"],
-							 ["<#AiProtection_filter_p2p1#>", "<#AiProtection_filter_p2p2#>"],
-							 ["<#AiProtection_filter_stream1#>", "<#AiProtection_filter_stream2#>", "<#AiProtection_filter_stream3#>"]];*/
 	var sub_category_name = [["<#AiProtection_filter_Adult1#>", "<#AiProtection_filter_Adult2#>", "<#AiProtection_filter_Adult3#>"],
 							 ["<#AiProtection_filter_Adult3#>", "<#AiProtection_filter_Adult5#>", "<#AiProtection_filter_Adult6#>", "<#AiProtection_filter_Adult7#>", "<#AiProtection_filter_Adult8#>"],
 							 ["<#AiProtection_filter_p2p1#>", "<#AiProtection_filter_p2p2#>"],
 							 ["<#AiProtection_filter_stream1#>", "<#AiProtection_filter_stream2#>", "<#AiProtection_filter_stream3#>"]];
-	
-	/*var category_desc = ["Block web Surfing will prohibit client from any web service.",
-						 "Block adult content can prevent child from visiting sexy, violence and illegal related content.", 
-						 "Block IM and communication content can prevent child from addicted to social networking usage.", 
-						 "<#AiProtection_filter_p2p_desc#>", 
-						 "<#AiProtection_filter_stream_desc#>"];	*/
-	var category_desc = ["Block adult content can prevent child from visiting sexy, violence and illegal related content.", 
-						 "Block IM and communication content can prevent child from addicted to social networking usage.", 
+	var category_desc = ["<#AiProtection_filter_Adult_desc#>", 
+						 "<#AiProtection_filter_message_desc#>", 
 						 "<#AiProtection_filter_p2p_desc#>", 
 						 "<#AiProtection_filter_stream_desc#>"];
 		
@@ -326,14 +315,14 @@ function genMain_table(){
 	var code = "";	
 	code += '<table width="100%" border="1" cellspacing="0" cellpadding="4" align="center" class="FormTable_table" id="mainTable_table">';
 	code += '<thead><tr>';
-	code += '<td colspan="5"><#ConnectedClient#>&nbsp;(<#List_limit#>：&nbsp;16)</td>';
+	code += '<td colspan="5"><#ConnectedClient#>&nbsp;(<#List_limit#>&nbsp;16)</td>';
 	code += '</tr></thead>';	
 	code += '<tbody>';
 	code += '<tr>';
-	code += '<th width="5%" height="30px" title="Select all">';
+	code += '<th width="5%" height="30px" title="<#select_all#>">';
 	code += '<input id="selAll" type="checkbox" onclick="selectAll(this, 0);" value="">';
 	code += '</th>';
-	code += '<th width="40%">Client name</th>';
+	code += '<th width="40%">Client\'s MAC address</th>';
 	code += '<th width="40%"><#AiProtection_filter_category#></th>';
 	code += '<th width="10%"><#list_add_delete#></th>';
 	code += '</tr>';
@@ -342,7 +331,7 @@ function genMain_table(){
 	code += '<input type="checkbox" checked="">';
 	code += '</td>';
 	code += '<td style="border-bottom:2px solid #000;">';
-	code += '<input type="text" maxlength="32" style="margin-left:10px;float:left;width:255px;" class="input_20_table" name="PC_devicename" onkeypress="" onclick="hideClients_Block();" onblur="if(!over_var){hideClients_Block();}" placeholder="<#AiProtection_client_select#>">';
+	code += '<input type="text" maxlength="17" style="margin-left:10px;float:left;width:255px;" class="input_20_table" name="PC_devicename" onkeypress="return validator.isHWAddr(this,event)" onclick="hideClients_Block();" onblur="if(!over_var){hideClients_Block();}" placeholder="<#AiProtection_client_select#>">';
 	code += '<img id="pull_arrow" height="14px;" src="/images/arrow-down.gif" onclick="pullLANIPList(this);" title="<#select_client#>" onmouseover="over_var=1;" onmouseout="over_var=0;">';
 	code += '<div id="ClientList_Block_PC" class="ClientList_Block_PC"></div>';	
 	code += '</td>';
@@ -400,7 +389,7 @@ function genMain_table(){
 							
 			code += '</td>';	
 			if(match_flag == 1){
-				code += '<td title="'+apps_filter_col[1]+'">'+ apps_client_name +'</td>';
+				code += '<td title="'+apps_filter_col[1]+'">'+ apps_client_name + '<br>(' +  apps_filter_col[1]  +')</td>';
 			}
 			else{
 				if(apps_filter_col[1] == ""){		//input manually
@@ -450,7 +439,6 @@ function genMain_table(){
 	
 	code += '</tbody>';	
 	code += '</table>';
-
 	$('mainTable').innerHTML = code;
 	showLANIPList();
 }
@@ -571,10 +559,11 @@ function edit_table(){
 	apps_filter = apps_filter_temp;
 	return true;
 }
-						
+
+var ctf_disable = '<% nvram_get("ctf_disable"); %>';
+var ctf_fa_mode = '<% nvram_get("ctf_fa_mode"); %>';					
 function applyRule(){
 	var apps_filter_row = "";
-	
 	if(document.form.PC_devicename.value != ""){
 		alert("You must press add icon to add a new rule first.");
 		return false;
@@ -649,6 +638,15 @@ function applyRule(){
 	document.form.action_script.value = "restart_wrs;restart_firewall";
 	document.form.wrs_rulelist.value = wrs_rulelist;
 	document.form.wrs_app_rulelist.value = apps_rulelist;
+	if(ctf_disable == 0 && ctf_fa_mode == 2){
+		if(!confirm(Untranslated.ctf_fa_hint)){
+			return false;
+		}	
+		else{
+			document.form.action_script.value = "reboot";
+			document.form.action_wait.value = "<% nvram_get("reboot_time"); %>";
+		}	
+	}
 	showLoading();	
 	document.form.submit();
 }
@@ -664,8 +662,7 @@ function translate_category_id(){
 	
 	if(wrs_filter != "" || wrs_app_filter != ""){
 		wrs_filter_row =  wrs_filter.split("<");
-		wrs_app_filter_row =  wrs_app_filter.split("<");
-	
+		wrs_app_filter_row =  wrs_app_filter.split("<");	
 	}
 	
 	var apps_filter_temp = "";
@@ -754,9 +751,16 @@ function show_inner_tab(){
 }
 
 function show_tm_eula(){
-	$j.get("tm_eula.html", function(data){
-		$('agreement_panel').innerHTML= data;
-	});
+	if(document.form.preferred_lang.value == "JP"){
+		$j.get("JP_tm_eula.htm", function(data){
+			$('agreement_panel').innerHTML= data;
+		});
+	}
+	else{
+		$j.get("tm_eula.htm", function(data){
+			$('agreement_panel').innerHTML= data;
+		});
+	}
 	dr_advise();
 	cal_agreement_block();
 	$j("#agreement_panel").fadeIn(300);
@@ -829,7 +833,6 @@ function eula_confirm(){
 <input type="hidden" name="wrs_rulelist" value="">
 <input type="hidden" name="wrs_app_rulelist" value="">
 <input type="hidden" name="TM_EULA" value="<% nvram_get("TM_EULA"); %>">
-<input type="hidden" name="wrs_mals_list" value="<% nvram_get("wrs_mals_list"); %>">
 <table class="content" align="center" cellpadding="0" cellspacing="0" >
 	<tr>
 		<td width="17">&nbsp;</td>		
@@ -855,13 +858,13 @@ function eula_confirm(){
 												<div class="formfonttitle" style="width:400px">AiProtection - <#AiProtection_filter#></div>
 											</td>
 											<td>
-												<div id="switch_menu" style="margin:-20px 0px 0px -20px;">													
-													<div style="background-image:url('images/New_ui/left-dark.png');width:173px;height:40px;">
-														<div style="text-align:center;padding-top:9px;color:#93A9B1;font-size:14px"><#AiProtection_filter#></div>
+												<div id="switch_menu" style="margin:-20px 0px 0px -20px;">
+													<div style="width:173px;height:30px;border-top-left-radius:8px;border-bottom-left-radius:8px;" class="block_filter_pressed">
+														<div style="text-align:center;padding-top:5px;color:#93A9B1;font-size:14px"><#AiProtection_filter#></div>
 													</div>
 													<a href="ParentalControl.asp">
-														<div style="background-image:url('images/New_ui/right-light.png');width:172px;height:40px;margin:-41px 0px 0px 173px;">
-															<div style="text-align:center;padding-top:9px;color:#FFFFFF;font-size:14px"><#Time_Scheduling#></div>
+														<div style="width:172px;height:30px;margin:-32px 0px 0px 173px;border-top-right-radius:8px;border-bottom-right-radius:8px;" class="block_filter">
+															<div class="block_filter_name"><#Time_Scheduling#></div>
 														</div>
 													</a>
 												</div>
@@ -885,6 +888,7 @@ function eula_confirm(){
 													<li><#AiProtection_filter_desc4#></li>
 												</ol>
 												<span><#AiProtection_filter_note#></span>
+												<div><a style="text-decoration:underline;" href="http://www.asus.com/us/support/FAQ/1008720/" target="_blank"><#Parental_Control#> FAQ</a></div>
 											</td>
 										</tr>
 									</table>
@@ -908,22 +912,24 @@ function eula_confirm(){
 															
 															document.form.wrs_enable.value = 1;	
 															document.form.wrs_app_enable.value = 1;
-															document.form.wrs_mals_list.value = malicious_cat_id;
 															showhide("list_table",1);
 															
 														},
 														function(){
 															document.form.wrs_enable.value = 0;
 															document.form.wrs_app_enable.value = 0;
-															document.form.wrs_mals_list.value = "";
 															showhide("list_table",0);
 															document.form.wrs_rulelist.disabled = true;
-															if(document.form.wrs_enable_ori.value == 1)
-																applyRule();															
-														},
-															{
-																switch_on_container_path: '/switcherplugin/iphone_switch_container_off.png'
-														});
+															document.form.wrs_app_rulelist.disabled = true;
+															if(document.form.wrs_enable_ori.value == 1){
+																applyRule();
+															}
+															else{
+																curState = 0;
+															}
+																														
+														}
+													);
 												</script>			
 											</div>
 										</td>
@@ -940,10 +946,8 @@ function eula_confirm(){
 														},
 														function(){
 																					
-														},
-															{
-																switch_on_container_path: '/switcherplugin/iphone_switch_container_off.png'
-														});
+														}
+													);
 												</script>			
 											</div>
 										</td>			
@@ -952,10 +956,10 @@ function eula_confirm(){
 								<table id="list_table" width="100%" border="0" align="center" cellpadding="0" cellspacing="0" style="display:none">
 									<tr>
 										<td valign="top" align="center">
-											<div id="mainTable" style="margin-top:10px;"></div>
+											<div id="mainTable" style="margin-top:10px;"></div> 
 											<div id="ctrlBtn" style="text-align:center;margin-top:20px;">
 												<input class="button_gen" type="button" onclick="applyRule();" value="<#CTL_apply#>">											
-												<div style="width:100px;height:48px;margin:-40px 0px 5px 625px;background-image:url('images/New_ui/tm_logo.png');"></div>
+												<div style="width:135px;height:55px;position:absolute;bottom:5px;right:5px;background-image:url('images/New_ui/tm_logo_power.png');"></div>
 											</div>
 										</td>	
 									</tr>

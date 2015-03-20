@@ -19,15 +19,12 @@
 <script type="text/javascript" src="/general.js"></script>
 <script type="text/javascript" src="/popup.js"></script>
 <script type="text/javascript" src="/md5.js"></script>
-<script type="text/javascript" src="/detect.js"></script>
 <script type="text/javascript" src="/chanspec.js"></script>
+<script type="text/javascript" src="/validator.js"></script>
+<script type="text/javascript" src="/jquery.js"></script>
+<script type="text/javascript" src="/switcherplugin/jquery.iphone-switch.js"></script>
 <script>
-wan_route_x = '<% nvram_get("wan_route_x"); %>';
-wan_nat_x = '<% nvram_get("wan_nat_x"); %>';
-wan_proto = '<% nvram_get("wan_proto"); %>';
-var wireless = [<% wl_auth_list(); %>];	// [[MAC, associated, authorized], ...]
-<% login_state_hook(); %>
-<% wl_get_parameter(); %>
+var $j = jQuery.noConflict();<% wl_get_parameter(); %>
 
 wl_channel_list_2g = <% channel_list_2g(); %>;
 wl_channel_list_5g = <% channel_list_5g(); %>;
@@ -37,7 +34,7 @@ if('<% nvram_get("wl_unit"); %>' == '1')
 		country = '<% nvram_get("wl1_country_code"); %>';
 else		
 		country = '<% nvram_get("wl0_country_code"); %>';
-		
+
 function initial(){
 	show_menu();
 	if(band5g_11ac_support){
@@ -86,6 +83,8 @@ function initial(){
 	document.form.wl_phrase_x.value = decodeURIComponent('<% nvram_char_to_ascii("", "wl_phrase_x"); %>');
 	document.form.wl_channel.value = document.form.wl_channel_orig.value;
 
+	regen_band(document.form.wl_unit);
+
 	if(document.form.wl_unit[0].selected == true){
 		$("wl_gmode_checkbox").style.display = "";
 	}
@@ -109,36 +108,51 @@ function initial(){
 
 	if(!band5g_support)	
 		$("wl_unit_field").style.display = "none";
-	if(wl_info.band5g_2_support)
-		regen_band();
 
 	if(sw_mode == 2 || sw_mode == 4)
 		document.form.wl_subunit.value = ('<% nvram_get("wl_unit"); %>' == '<% nvram_get("wlc_band"); %>') ? 1 : -1;
 				
 	change_wl_nmode(document.form.wl_nmode_x);
 	if(country == "EU"){		//display checkbox of DFS channel under 5GHz
-		if(based_modelid == "RT-AC68U" || based_modelid == "RT-AC68U_V2" || based_modelid == "DSL-AC68U" || based_modelid == "RT-AC69U" || based_modelid == "TM-AC1900"
+		if(based_modelid == "RT-AC68U" || based_modelid == "RT-AC68U_V2" || based_modelid == "DSL-AC68U" || based_modelid == "RT-AC69U"
 		|| based_modelid == "RT-AC87U"
-		|| based_modelid == "RT-AC3200"){
-			if(document.form.wl_channel.value  == '0' && '<% nvram_get("wl_unit"); %>' == '1')
-				$('dfs_checkbox').style.display = "";
+		|| based_modelid == "RT-AC3200"
+		|| (based_modelid == "RT-AC66U" && wl1_dfs == "1")		//0: A2 not support, 1: B0 support
+		|| based_modelid == "RT-N66U"){
+				if(document.form.wl_channel.value  == '0' && '<% nvram_get("wl_unit"); %>' == '1'){
+						$('dfs_checkbox').style.display = "";
+						check_DFS_support(document.form.acs_dfs_checkbox);
+				}
 		}
 	}
 	else if(country == "US" || country == "SG"){		//display checkbox of band1 channel under 5GHz
-		if(based_modelid == "RT-AC68U" || based_modelid == "RT-AC68U_V2" || based_modelid == "RT-AC69U" || based_modelid == "TM-AC1900" || based_modelid == "DSL-AC68U"
+		if(based_modelid == "RT-AC68U" || based_modelid == "RT-AC68U_V2" || based_modelid == "RT-AC69U" || based_modelid == "DSL-AC68U"
 		|| based_modelid == "RT-AC56U" || based_modelid == "RT-AC56S"
 		|| based_modelid == "RT-N18U"
 		|| based_modelid == "RT-AC66U"
 		|| based_modelid == "RT-N66U"
-		|| based_modelid == "RT-AC53U"
-		|| based_modelid == "RT-AC3200"){		
+		|| based_modelid == "RT-AC53U"){		
 			if(document.form.wl_channel.value  == '0' && '<% nvram_get("wl_unit"); %>' == '1')
 				$('acs_band1_checkbox').style.display = "";					
 		}
 	}
 
-	inputCtrl(document.form.wl_mfp, 0);	// hide temporally for T-Mobile WiFi Authentication, Jieming added at 2014/07/11
+	if(smart_connect_support){
+		var flag = '<% get_parameter("flag"); %>';		
+		var smart_connect_flag_t;
+
+		document.getElementById("smartcon_enable_field").style.display = "";
+
+		if(flag == '')
+			smart_connect_flag_t = '<% nvram_get("smart_connect_x"); %>';
+		else
+			smart_connect_flag_t = flag;	
+
+		document.form.smart_connect_x.value = smart_connect_flag_t;
+		enableSmartCon(smart_connect_flag_t);
+	}
 }
+
 
 function change_wl_nmode(o){
 	if(o.value=='1') /* Jerry5: to be verified */
@@ -160,7 +174,7 @@ function genBWTable(_unit){
 	cur = '<% nvram_get("wl_bw"); %>';
 	var bws = new Array();
 	var bwsDesc = new Array();
-
+	
 	if(document.form.wl_nmode_x.value == 2){
 		bws = [1];
 		bwsDesc = ["20 MHz"];
@@ -217,7 +231,16 @@ function genBWTable(_unit){
 					bws = [1, 2, 3];
 					bwsDesc = ["20 MHz", "40 MHz", "80 MHz"];
 				}
-			}else{	
+			}
+			else if((based_modelid == "DSL-AC68U" || based_modelid == "RT-AC68U" || based_modelid == "RT-AC68U_V2" || based_modelid == "RT-AC69U" || 
+				based_modelid == "RT-AC56U" || based_modelid == "RT-AC56S" || 
+				based_modelid == "RT-AC66U" || 
+				based_modelid == "RT-AC3200" || 
+				based_modelid == "RT-AC53U") && document.form.wl_nmode_x.value == 1){		//N only
+				bws = [0, 1, 2];
+				bwsDesc = ["20/40 MHz", "20 MHz", "40 MHz"];
+			}
+			else{	
 				bws = [0, 1, 2, 3];
 				bwsDesc = ["20/40/80 MHz", "20 MHz", "40 MHz", "80 MHz"];
 			}
@@ -230,7 +253,7 @@ function genBWTable(_unit){
 
 function mbss_display_ctrl(){
 	// generate options
-	if(wl_vifnames != ""){
+	if(multissid_support){
 		for(var i=1; i<multissid_support+1; i++)
 			add_options_value(document.form.wl_subunit, i, '<% nvram_get("wl_subunit"); %>');
 	}	
@@ -267,25 +290,48 @@ function applyRule(){
 		document.form.wl_wpa_psk.value = "";
 
 	if(validForm()){
-		if(document.form.wl_closed[0].checked && document.form.wps_enable.value == 1){
-			if(confirm("Selecting Hide SSID will disable WPS. Are you sure?")){
-				document.form.wps_enable.value = "0";	
-			}
-			else{	
-				return false;	
+        if(document.form.wl_closed[0].checked && document.form.wps_enable.value == 1){ 
+            if(!confirm("Selecting Hide SSID will disable WPS. Are you sure?")){
+                return false;           
+            }
+ 
+             document.form.wps_enable.value = "0";
+        }
+	
+        if(document.form.wps_enable.value == 1){
+            if(document.form.wps_dualband.value == "1" || document.form.wl_unit.value == document.form.wps_band.value){         //9: RT-AC87U dual band WPS
+                if(document.form.wl_auth_mode_x.value == "open" && document.form.wl_wep_x.value == "0"){
+					if(!confirm("Are you sure to configure WPS in Open System (no security) ?"))
+						return false;           
+                }
+                
+                if( document.form.wl_auth_mode_x.value == "shared"
+                 || document.form.wl_auth_mode_x.value == "psk" || document.form.wl_auth_mode_x.value == "wpa"
+                 || document.form.wl_auth_mode_x.value == "open" && (document.form.wl_wep_x.value == "1" || document.form.wl_wep_x.value == "2")){              //open wep case
+                    if(!confirm("Selecting WEP or TKIP Encryption will disable the WPS. Are you sure ?"))
+                        return false;   
+					
+                    document.form.wps_enable.value = "0";   
+                }       
+            }
+			else{
+				if(document.form.wl_auth_mode_x.value == "open" && document.form.wl_wep_x.value == "0"){
+					if(!confirm("Are you sure to configure WPS in Open System (no security) ?"))
+						return false;		
+				}
 			}
 		}
-	
+
 		showLoading();
 		if(based_modelid == "RT-AC87U" && "<% nvram_get("wl_unit"); %>" == "1")
 			stopFlag = '0';
 			
-		document.form.wps_config_state.value = "1";
-		
-		if((auth_mode == "shared" || auth_mode == "wpa" || auth_mode == "wpa2"  || auth_mode == "wpawpa2" || auth_mode == "radius" ||
-				((auth_mode == "open") && !(document.form.wl_wep_x.value == "0")))
-				&& document.form.wps_mode.value == "enabled")
+		document.form.wps_config_state.value = "1";		
+		if((auth_mode == "shared" || auth_mode == "wpa" || auth_mode == "wpa2"  || auth_mode == "wpawpa2" || auth_mode == "radius" 
+		||((auth_mode == "open") && !(document.form.wl_wep_x.value == "0")))
+		 && document.form.wps_mode.value == "enabled"){
 			document.form.wps_mode.value = "disabled";
+		}	
 		
 		if(auth_mode == "wpa" || auth_mode == "wpa2" || auth_mode == "wpawpa2" || auth_mode == "radius")
 			document.form.next_page.value = "/Advanced_WSecurity_Content.asp";
@@ -309,7 +355,15 @@ function applyRule(){
 					document.form.wl_chanspec.value = document.form.wl_channel.value + document.form.wl_nctrlsb.value;
 				}
 			}	
-		}	
+		}
+
+		if(country == "EU" && based_modelid == "RT-AC87U" && '<% nvram_get("wl_unit"); %>' == '1'){			//Interlocking setting to enable 'wl1_80211h' in EU RT-AC87U under 5GHz
+			if(document.form.wl_channel.value  == '0' && document.form.acs_dfs.value == '1')			//Auto channel with DFS channel
+				document.form.wl1_80211h.value = "1";	
+		}
+
+		if(smart_connect_support && document.form.smart_connect_x.value == '1')
+			document.form.wl_unit.value = 0;
 
 		if (based_modelid == "RT-AC87U" && "<% nvram_get("wl_unit"); %>" == "1")
 			detect_qtn_ready();
@@ -321,7 +375,7 @@ function applyRule(){
 function validForm(){
 	var auth_mode = document.form.wl_auth_mode_x.value;
 	
-	if(!validate_string_ssid(document.form.wl_ssid))
+	if(!validator.stringSSID(document.form.wl_ssid))
 		return false;
 	
 	if(!check_NOnly_to_GN()){
@@ -333,19 +387,19 @@ function validForm(){
 		if(!validate_wlphrase('WLANConfig11b', 'wl_phrase_x', document.form.wl_phrase_x))
 			return false;	
 	if(auth_mode == "psk" || auth_mode == "psk2" || auth_mode == "pskpsk2"){ //2008.08.04 lock modified
-		if(!validate_psk(document.form.wl_wpa_psk))
+		if(!validator.psk(document.form.wl_wpa_psk))
 			return false;
 		
-		if(!validate_range(document.form.wl_wpa_gtk_rekey, 0, 2592000))
+		if(!validator.range(document.form.wl_wpa_gtk_rekey, 0, 2592000))
 			return false;
 	}
 	else if(auth_mode == "wpa" || auth_mode == "wpa2" || auth_mode == "wpawpa2"){
-		if(!validate_range(document.form.wl_wpa_gtk_rekey, 0, 2592000))
+		if(!validator.range(document.form.wl_wpa_gtk_rekey, 0, 2592000))
 			return false;
 	}
 	else{
 		var cur_wep_key = eval('document.form.wl_key'+document.form.wl_key.value);		
-		if(auth_mode != "radius" && !validate_wlkey(cur_wep_key))
+		if(auth_mode != "radius" && !validator.wlKey(cur_wep_key))
 			return false;
 	}	
 	return true;
@@ -356,7 +410,7 @@ function done_validating(action){
 }
 
 function validate_wlphrase(s, v, obj){
-	if(!validate_string(obj)){
+	if(!validator.string(obj)){
 		is_wlphrase(s, v, obj);
 		return false;
 	}
@@ -369,8 +423,12 @@ function disableAdvFn(){
 }
 
 function _change_wl_unit(val){
-	if(sw_mode == 2 || sw_mode == 4)	
+	if(sw_mode == 2 || sw_mode == 4)
 		document.form.wl_subunit.value = (val == '<% nvram_get("wlc_band"); %>') ? 1 : -1;
+	
+	if(smart_connect_support)
+		document.form.current_page.value = "Advanced_Wireless_Content.asp?flag=" + document.form.smart_connect_x.value;
+	
 	change_wl_unit();
 }
 
@@ -439,26 +497,24 @@ function check_NOnly_to_GN(){
 //  Viz add 2012.11.05 restriction for 'N Only' mode  ) end		
 }
 
-function regen_5G_mode(obj,flag){
-	if(flag == 1){
-		free_options(obj);
+function regen_5G_mode(obj,flag){	//please sync to initial() : //Change wireless mode help desc
+	free_options(obj);
+	if(flag == 1 || flag == 2){
 		if(based_modelid == "RT-AC87U"){
 			obj.options[0] = new Option("<#Auto#>", 0);
-			obj.options[1] = new Option("N only", 1);
-		}
-		else if(based_modelid == "DSL-AC68U" || based_modelid == "RT-AC68U" || based_modelid == "RT-AC56U" || based_modelid == "RT-AC53U"){
-			obj.options[0] = new Option("<#Auto#>", 0);
-			obj.options[1] = new Option("N only", 1);
-			obj.options[2] = new Option("N/AC mixed", 8);
-			obj.options[3] = new Option("Legacy", 2);
+			obj.options[1] = new Option("N only", 1);			
 		}
 		else{
 			obj.options[0] = new Option("<#Auto#>", 0);
 			obj.options[1] = new Option("N only", 1);
-			obj.options[2] = new Option("Legacy", 2);
-		}
+			obj.options[2] = new Option("N/AC mixed", 8);
+			obj.options[3] = new Option("Legacy", 2);
+		}	
+	}else{
+		obj.options[0] = new Option("<#Auto#>", 0);
+		obj.options[1] = new Option("N only", 1);
+		obj.options[2] = new Option("Legacy", 2);		
 	}
-	
 	obj.value = '<% nvram_get("wl_nmode_x"); %>';
 }
 
@@ -492,15 +548,42 @@ function tmo_wl_nmode(){
 	}
 }
 
-function check_WPS(){
-	if(document.form.wl_closed[0].checked && document.form.wps_enable.value == 1){
-		if(confirm("Selecting Hide SSID will disable WPS. Are you sure?")){
-			document.form.wps_enable.value = "0";	
+function enableSmartCon(val){
+
+	document.form.smart_connect_x.value = val;
+
+	if(val == 0){
+		$("wl_unit_field").style.display = "";
+		document.form.wl_nmode_x.disabled = "";
+		document.getElementById("wl_optimizexbox_span").style.display = "";
+		if(document.form.wl_unit[0].selected == true){
+			$("wl_gmode_checkbox").style.display = "";
 		}
-		else{	
-			return false;	
+		if(band5g_11ac_support){
+			regen_5G_mode(document.form.wl_nmode_x,'<% nvram_get("wl_unit"); %>')		
+		}else{
+			free_options(document.form.wl_nmode_x);
+			obj.options[0] = new Option("<#Auto#>", 0);
+			obj.options[1] = new Option("N only", 1);
+			obj.options[2] = new Option("Legacy", 2);
 		}
+		change_wl_nmode(document.form.wl_nmode_x);
 	}
+	else if(val == 1){
+		$("wl_unit_field").style.display = "none";
+		regen_auto_option(document.form.wl_nmode_x);
+		document.getElementById("wl_optimizexbox_span").style.display = "none";
+		document.getElementById("wl_gmode_checkbox").style.display = "none";
+		regen_auto_option(document.form.wl_bw);
+		regen_auto_option(document.form.wl_channel);
+		regen_auto_option(document.form.wl_nctrlsb);
+	}
+}
+
+function regen_auto_option(obj){
+	free_options(obj);
+	obj.options[0] = new Option("<#Auto#>", 0);
+	obj.selectedIndex = 0;
 }
 </script>
 </head>
@@ -514,7 +597,7 @@ function check_WPS(){
 		<td>
 			<div class="drword" id="drword"><#Main_alert_proceeding_desc4#> <#Main_alert_proceeding_desc1#>...
 				<br/>
-				<div id="disconnect_hint" style="display:none;">This may interrupt your internet connection.</div>
+				<div id="disconnect_hint" style="display:none;"><#Main_alert_proceeding_desc2#></div>
 				<br/>
 		    </div>
 			<div id="wireless_client_detect" style="margin-left:10px;position:absolute;display:none">
@@ -522,7 +605,7 @@ function check_WPS(){
 				<div style="margin:-45px 0 0 75px;"><#QKSet_Internet_Setup_fail_method1#></div>
 			</div> 
 			<div class="drImg"><img src="images/alertImg.png"></div>
-			<div style="height:70px; "></div>
+			<div style="height:100px; "></div>
 		</td>
 		</tr>
 	</table>
@@ -532,8 +615,6 @@ function check_WPS(){
 <iframe name="hidden_frame" id="hidden_frame" width="0" height="0" frameborder="0"></iframe>
 <form method="post" name="autochannelform" action="/start_apply2.htm" target="hidden_frame">
 <input type="hidden" name="productid" value="<% nvram_get("productid"); %>">
-<input type="hidden" name="wan_route_x" value="<% nvram_get("wan_route_x"); %>">
-<input type="hidden" name="wan_nat_x" value="<% nvram_get("wan_nat_x"); %>">
 <input type="hidden" name="current_page" value="Advanced_Wireless_Content.asp">
 <input type="hidden" name="next_page" value="Advanced_Wireless_Content.asp">
 <input type="hidden" name="modified" value="0">
@@ -549,8 +630,6 @@ function check_WPS(){
 </form>	
 <form method="post" name="form" action="/start_apply2.htm" target="hidden_frame">
 <input type="hidden" name="productid" value="<% nvram_get("productid"); %>">
-<input type="hidden" name="wan_route_x" value="<% nvram_get("wan_route_x"); %>">
-<input type="hidden" name="wan_nat_x" value="<% nvram_get("wan_nat_x"); %>">
 <input type="hidden" name="current_page" value="Advanced_Wireless_Content.asp">
 <input type="hidden" name="next_page" value="Advanced_Wireless_Content.asp">
 <input type="hidden" name="modified" value="0">
@@ -586,6 +665,11 @@ function check_WPS(){
 <input type="hidden" name="acs_dfs" value='<% nvram_get("acs_dfs"); %>'>
 <input type="hidden" name="acs_band1" value='<% nvram_get("acs_band1"); %>'>
 <input type="hidden" name="wps_enable" value="<% nvram_get("wps_enable"); %>">
+<input type="hidden" name="wps_band" value="<% nvram_get("wps_band"); %>">
+<input type="hidden" name="wps_dualband" value="<% nvram_get("wps_dualband"); %>">
+<input type="hidden" name="smart_connect_x" value="<% nvram_get("smart_connect_x"); %>">
+<input type="hidden" name="wl1_80211h" value="<% nvram_get("wl1_80211h"); %>" >
+<input type="hidden" name="w_Setting" value="1">
 <table class="content" align="center" cellpadding="0" cellspacing="0">
   <tr>
 	<td width="17">&nbsp;</td>
@@ -614,6 +698,38 @@ function check_WPS(){
 		
 			<table width="99%" border="1" align="center" cellpadding="4" cellspacing="0" id="WLgeneral" class="FormTable">
 
+			<tr id="smartcon_enable_field" style="display:none;">
+			  	<th width="30%"><a class="hintstyle" href="javascript:void(0);" onClick="openHint(13,1);">Enabled Smart Connect</a></th>
+			  	<td>
+			    	<div id="smartcon_enable_block" style="display:none;">
+			    		<span style="color:#FFF;" id="smart_connect_enable_word">&nbsp;&nbsp;</span>
+			    		<input type="button" name="enableSmartConbtn" id="enableSmartConbtn" value="" class="button_gen" onClick="enableSmartCon();">
+			    		<br>
+			    	</div>
+						
+			    	<div class="left" style="width: 94px;" id="radio_smartcon_enable"></div>
+						<div class="clear"></div>					
+						<script type="text/javascript">
+								var flag = '<% get_parameter("flag"); %>';
+								var smart_connect_flag_t;
+
+							if(flag == '')
+								smart_connect_flag_t = '<% nvram_get("smart_connect_x"); %>';
+							else
+								smart_connect_flag_t = flag;
+
+								$j('#radio_smartcon_enable').iphoneSwitch(smart_connect_flag_t>0, 
+								 function() {
+									enableSmartCon(1);
+								 },
+								 function() {
+									enableSmartCon(0);
+								 }
+							);
+						</script>
+		  	  </td>
+			</tr>
+
 				<tr id="wl_unit_field">
 					<th><#Interface#></th>
 					<td>
@@ -640,7 +756,7 @@ function check_WPS(){
 				<tr>
 					<th><a class="hintstyle" href="javascript:void(0);" onClick="openHint(0, 1);"><#WLANConfig11b_SSID_itemname#></a></th>
 					<td>
-						<input type="text" maxlength="32" class="input_32_table" id="wl_ssid" name="wl_ssid" value="<% nvram_get("wl_ssid"); %>" onkeypress="return is_string(this, event)">
+						<input type="text" maxlength="32" class="input_32_table" id="wl_ssid" name="wl_ssid" value="<% nvram_get("wl_ssid"); %>" onkeypress="return validator.isString(this, event)">
 					</td>
 		  	</tr>
 			  
@@ -684,7 +800,7 @@ function check_WPS(){
 					</th>
 					<td>
 				 		<select name="wl_channel" class="input_option" onChange="change_channel(this);"></select>
-						<span id="dfs_checkbox" style="display:none;"><input type="checkbox" onClick="check_DFS_support(this);"  <% nvram_match("acs_dfs", "1", "checked"); %>>Auto select channel including DFS channels</input></span>
+						<span id="dfs_checkbox" style="display:none;"><input type="checkbox" onClick="check_DFS_support(this);" name="acs_dfs_checkbox" <% nvram_match("acs_dfs", "1", "checked"); %>>Auto select channel including DFS channels</input></span>
 						<span id="acs_band1_checkbox" style="display:none;"><input type="checkbox" onClick="check_acs_band1_support(this);"  <% nvram_match("acs_band1", "1", "checked"); %>>Auto select channel including band1 channels</input></span>
 					</td>
 			  </tr> 
@@ -729,7 +845,7 @@ function check_WPS(){
 			  	<tr>
 					<th><a class="hintstyle" href="javascript:void(0);" onClick="openHint(0, 7);"><#WLANConfig11b_x_PSKKey_itemname#></a></th>
 					<td>
-				  		<input type="text" name="wl_wpa_psk" maxlength="64" class="input_32_table" value="<% nvram_get("wl_wpa_psk"); %>">
+						<input id="wl_wpa_psk" name="wl_wpa_psk" maxlength="64" class="input_32_table" type="password" autocapitalization="off" onBlur="switchType(this, false);" onFocus="switchType(this, true);" value="<% nvram_get("wl_wpa_psk"); %>">
 					</td>
 			  	</tr>
 			  		  
@@ -797,7 +913,7 @@ function check_WPS(){
 			  
 			  	<tr>
 					<th><a class="hintstyle" href="javascript:void(0);" onClick="openHint(0, 11);"><#WLANConfig11b_x_Rekey_itemname#></a></th>
-					<td><input type="text" maxlength="7" name="wl_wpa_gtk_rekey" class="input_6_table"  value="<% nvram_get("wl_wpa_gtk_rekey"); %>" onKeyPress="return is_number(this,event);"></td>
+					<td><input type="text" maxlength="7" name="wl_wpa_gtk_rekey" class="input_6_table"  value="<% nvram_get("wl_wpa_gtk_rekey"); %>" onKeyPress="return validator.isNumber(this,event);"></td>
 			  	</tr>
 		  	</table>
 			  

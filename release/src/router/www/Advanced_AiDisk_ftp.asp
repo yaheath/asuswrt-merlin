@@ -17,22 +17,13 @@
 <script type="text/javascript" src="/help.js"></script>
 <script type="text/javascript" src="/popup.js"></script>
 <script type="text/javascript" src="/disk_functions.js"></script>
-<script type="text/javascript" src="/aidisk/AiDisk_folder_tree.js"></script>
-<script type="text/javascript" src="/detect.js"></script>
+<script type="text/javascript" src="/validator.js"></script>
 <script type="text/javascript" src="/jquery.js"></script>
 <script type="text/javascript" src="/switcherplugin/jquery.iphone-switch.js"></script>
 <script type="text/javascript">
 var $j = jQuery.noConflict();
 
-wan_route_x = '<% nvram_get("wan_route_x"); %>';
-wan_nat_x = '<% nvram_get("wan_nat_x"); %>';
-wan_proto = '<% nvram_get("wan_proto"); %>';
-
-<% disk_pool_mapping_info(); %>
-<% available_disk_names_and_sizes(); %>
-
 <% get_AiDisk_status(); %>
-<% initial_folder_var_file(); %>
 <% get_permissions_of_account(); %>
 
 var PROTOCOL = "ftp";
@@ -57,8 +48,8 @@ var ddns_enable = '<% nvram_get("ddns_enable_x"); %>';
 
 function initial(){
 	show_menu();
-	$("option5").innerHTML = '<table><tbody><tr><td><div id="index_img5"></div></td><td><div style="width:120px;"><#Menu_usb_application#></div></td></tr></tbody></table>';
-	$("option5").className = "m5_r";
+	document.getElementById("_APP_Installation").innerHTML = '<table><tbody><tr><td><div class="_APP_Installation"></div></td><td><div style="width:120px;"><#Menu_usb_application#></div></td></tr></tbody></table>';
+	document.getElementById("_APP_Installation").className = "menu_clicked";
 	
 	document.aidiskForm.protocol.value = PROTOCOL;
 	
@@ -272,22 +263,26 @@ function show_permissions_of_account(account_order, protocol){
 	var accountName = accounts[account_order];
 	var poolName;
 	var permissions;
-	try{
-		for(var i = 0; i < pool_devices().length; ++i){
-			poolName = pool_devices()[i];
-			if(!this.clickedFolderBarCode[poolName])
-				continue;
 
-			permissions = get_account_permissions_in_pool(accountName, poolName);
-			for(var j = 1; j < permissions.length; ++j){
-				var folderBarCode = get_folderBarCode_in_pool(poolName, permissions[j][0]);
-				if(protocol == "cifs")
-					showPermissionRadio(folderBarCode, permissions[j][1]);
-				else if(protocol == "ftp")
-					showPermissionRadio(folderBarCode, permissions[j][2]);
-				else{
-					alert("Wrong protocol when get permission!");	// system error msg. must not be translate
-					return;
+	try{
+		for(var i=0; i < usbDevicesList.length; i++){
+			for(var j=0; j < usbDevicesList[i].partition.length; j++){
+				poolName = usbDevicesList[i].partition[j].mountPoint;
+
+				if(!this.clickedFolderBarCode[poolName])
+					continue;
+
+				permissions = get_account_permissions_in_pool(accountName, poolName);
+				for(var j = 1; j < permissions.length; ++j){
+					var folderBarCode = get_folderBarCode_in_pool(poolName, permissions[j][0]);
+					if(protocol == "cifs")
+						showPermissionRadio(folderBarCode, permissions[j][1]);
+					else if(protocol == "ftp")
+						showPermissionRadio(folderBarCode, permissions[j][2]);
+					else{
+						alert("Wrong protocol when get permission!");	// system error msg. must not be translate
+						return;
+					}
 				}
 			}
 		}
@@ -299,8 +294,8 @@ function show_permissions_of_account(account_order, protocol){
 
 function get_permission_of_folder(accountName, poolName, folderName, protocol){
 	var permissions = get_account_permissions_in_pool(accountName, poolName);
-	
-	for(var i = 1; i < permissions.length; ++i)
+
+	for(var i = 1; i < permissions.length; ++i){
 		if(permissions[i][0] == folderName){
 			if(protocol == "cifs")
 				return permissions[i][1];
@@ -311,7 +306,8 @@ function get_permission_of_folder(accountName, poolName, folderName, protocol){
 				return;
 			}
 		}
-	
+	}
+
 	alert("Wrong folderName when get permission!");	// system error msg. must not be translate
 }
 
@@ -337,59 +333,67 @@ function submitChangePermission(protocol){
 		else
 			target_account = accounts[i];
 		
-		if(!this.changedPermissions[target_account])
+		if(!changedPermissions[target_account])
 			continue;
 
-		for(var j = 0; j < pool_devices().length; ++j){
-			if(!this.changedPermissions[target_account][pool_devices()[j]])
-				continue;
+		var usbPartitionMountPoint = "";
+		//Scan all usb device
+		for(var j=0; j < usbDevicesList.length; j++){
+			//Scan all partition of usb device
+			for(var k=0; k < usbDevicesList[j].partition.length; k++){
+				usbPartitionMountPoint = usbDevicesList[j].partition[k].mountPoint;
+
+				if(!changedPermissions[target_account][usbPartitionMountPoint])
+					continue;
+
+				folderlist = get_sharedfolder_in_pool(usbPartitionMountPoint);
 			
-			folderlist = get_sharedfolder_in_pool(pool_devices()[j]);
-			
-			for(var k = 0; k < folderlist.length; ++k){
-				target_folder = folderlist[k];
+				for(var k = 0; k < folderlist.length; ++k){
+					target_folder = folderlist[k];
 				
-				if(!this.changedPermissions[target_account][pool_devices()[j]][target_folder])
-					continue;
+					if(!changedPermissions[target_account][usbPartitionMountPoint][target_folder])
+						continue;
+
+					if(target_account == "guest")
+						orig_permission = get_permission_of_folder(null, usbPartitionMountPoint, target_folder, PROTOCOL);
+					else
+						orig_permission = get_permission_of_folder(target_account, usbPartitionMountPoint, target_folder, PROTOCOL);
+
+					if(changedPermissions[target_account][usbPartitionMountPoint][target_folder] == orig_permission)
+						continue;
 				
-				if(target_account == "guest")
-					orig_permission = get_permission_of_folder(null, pool_devices()[j], target_folder, PROTOCOL);
-				else
-					orig_permission = get_permission_of_folder(target_account, pool_devices()[j], target_folder, PROTOCOL);
-				if(this.changedPermissions[target_account][pool_devices()[j]][target_folder] == orig_permission)
-					continue;
+					// the item which was set already
+					if(changedPermissions[target_account][usbPartitionMountPoint][target_folder] == -1)
+						continue;
 				
-				// the item which was set already
-				if(this.changedPermissions[target_account][pool_devices()[j]][target_folder] == -1)
-					continue;
-				
-				document.aidiskForm.action = "/aidisk/set_account_permission.asp";
-				if(target_account == "guest")
-					$("account").disabled = 1;
-				else{
-					$("account").disabled = 0;
-					$("account").value = target_account;
+					document.aidiskForm.action = "/aidisk/set_account_permission.asp";
+					if(target_account == "guest")
+						$("account").disabled = 1;
+					else{
+						$("account").disabled = 0;
+						$("account").value = target_account;
+					}
+					$("pool").value = usbPartitionMountPoint;
+					if(target_folder == "")
+						$("folder").disabled = 1;
+					else{
+						$("folder").disabled = 0;
+						$("folder").value = target_folder;
+					}
+					$("protocol").value = protocol;
+					$("permission").value = changedPermissions[target_account][usbPartitionMountPoint][target_folder];
+					
+					// mark this item which is set
+					changedPermissions[target_account][usbPartitionMountPoint][target_folder] = -1;
+					/*alert("account = "+$("account").value+"\n"+
+						  "pool = "+$("pool").value+"\n"+
+						  "folder = "+$("folder").value+"\n"+
+						  "protocol = "+$("protocol").value+"\n"+
+						  "permission = "+$("permission").value);//*/
+					showLoading();
+					document.aidiskForm.submit();
+					return;
 				}
-				$("pool").value = pool_devices()[j];
-				if(target_folder == "")
-					$("folder").disabled = 1;
-				else{
-					$("folder").disabled = 0;
-					$("folder").value = target_folder;
-				}
-				$("protocol").value = protocol;
-				$("permission").value = this.changedPermissions[target_account][pool_devices()[j]][target_folder];
-				
-				// mark this item which is set
-				this.changedPermissions[target_account][pool_devices()[j]][target_folder] = -1;
-				/*alert("account = "+$("account").value+"\n"+
-					  "pool = "+$("pool").value+"\n"+
-					  "folder = "+$("folder").value+"\n"+
-					  "protocol = "+$("protocol").value+"\n"+
-					  "permission = "+$("permission").value);//*/
-				showLoading();
-				document.aidiskForm.submit();
-				return;
 			}
 		}
 	}
@@ -629,7 +633,7 @@ function applyRule(){
 }
 
 function validForm(){
-	if(!validate_range(document.form.st_max_user, 1, 10)){
+	if(!validator.range(document.form.st_max_user, 1, 10)){
 			document.form.st_max_user.focus();
 			document.form.st_max_user.select();
 			return false;
@@ -721,9 +725,6 @@ function validForm(){
 									},
 									function() {
 										switchAppStatus(PROTOCOL);
-									},
-									{
-										switch_on_container_path: '/switcherplugin/iphone_switch_container_off.png'
 									}
 								);
 							</script>			
@@ -743,9 +744,6 @@ function validForm(){
 									},
 									function() {
 										switchAccount(PROTOCOL);
-									},
-									{
-										switch_on_container_path: '/switcherplugin/iphone_switch_container_off.png'
 									}
 								);
 							</script>
@@ -758,7 +756,7 @@ function validForm(){
 						<a class="hintstyle" href="javascript:void(0);" onClick="openHint(17,1);"><#ShareNode_MaximumLoginUser_itemname#></a>
 					</th>
 					<td>
-						<input type="text" name="st_max_user" class="input_3_table" maxlength="1" value="<% nvram_get("st_max_user"); %>" onKeyPress="return is_number(this, event);">
+						<input type="text" name="st_max_user" class="input_3_table" maxlength="2" value="<% nvram_get("st_max_user"); %>" onKeyPress="return validator.isNumber(this, event);">
 					</td>
 				</tr>
 				<tr>
@@ -863,7 +861,7 @@ function validForm(){
 			 	 <!-- the tree of folders -->
   		      	<div id="e0" style="font-size:10pt; margin-top:2px;"></div>
 			  	<div style="text-align:center; margin:10px auto; border-top:1px dotted #CCC; width:95%; padding:2px;">
-			    		<input name="changePermissionBtn" id="changePermissionBtn" type="button" value="Save Permission" class="button_gen_long_dis" disabled="disabled">
+			    		<input name="changePermissionBtn" id="changePermissionBtn" type="button" value="<#CTL_save_permission#>" class="button_gen_long_dis" disabled="disabled">
 			  	</div>
 		    		</td>
 		    		<!-- The right side table of folders.    End -->
@@ -887,11 +885,7 @@ function validForm(){
     <td width="10" align="center" valign="top">&nbsp;</td>
 	</tr>
 </table>
-</form>
-
-
-
-<div id="footer"></div>
+</form><div id="footer"></div>
 
 <!-- mask for disabling AiDisk -->
 <div id="OverlayMask" class="popup_bg">

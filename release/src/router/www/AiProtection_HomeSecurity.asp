@@ -22,8 +22,14 @@ var $j = jQuery.noConflict();
 
 function initial(){
 	show_menu();
-	if (!dnsfilter_support)
-		$("dnsfilter").style.display = "none";
+	if(adBlock_support) {
+		document.getElementById("adBlock_field").style.display = "";
+		document.getElementById("adb_hdr").style.display = "";
+	}
+	if (dnsfilter_support) {
+		document.getElementById("dnsfilter").style.display = "";
+		document.getElementById("dnsf_hdr").style.display = "";
+	}
 }
 
 </script>
@@ -105,9 +111,9 @@ function initial(){
 												<td align="center" class="app_table_radius_left" style="width:85px;">
 													<img style="margin-top:0px;" src="/images/New_ui/parental-control.png" onclick="location.href='AiProtection_WebProtector.asp';">
 												</td>
-												<td class="app_table_radius_right" style="width:350px;height:120px;"">
+												<td class="app_table_radius_right" style="width:350px;height:120px;">
 													<div class="app_name">
-														<a style="text-decoration: underline;" href="AiProtection_WebProtector.asp">Parental Controls</a>
+														<a style="text-decoration: underline;" href="AiProtection_WebProtector.asp"><#Parental_Control#></a>
 													</div>
 													<div class="app_desc" style="height:60px;">
 														<li><#Time_Scheduling#></li>
@@ -115,9 +121,27 @@ function initial(){
 													</div>
 												</td>
 											</tr>
+											<tr id="adb_hdr" style="height:50px; display:none;"></tr>
 
-											<tr id="dnsfilter">
+											<tr id="adBlock_field" style="display:none">
 												<td align="center" class="app_table_radius_left" style="width:85px;">
+													<div style="text-align:center;background: url('/images/New_ui/Web_Apps_Restriction.png');width:130px;height:85px;margin-left:30px;"></div>
+												</td>
+												<td class="app_table_radius_right" style="width:350px;height:120px;">
+													<div class="app_name">
+														<a style="text-decoration: underline;" href="AiProtection_AdBlock.asp">Ad Blocking</a>
+													</div>
+													<div class="app_desc" style="height:60px;">
+														<li>Streaming Ad Blocking</li>
+														<li>Pop-Up window Ad Blocking</li>			
+													</div>
+												</td>
+											</tr>
+											<tr id="dnsf_hdr" style="height:50px; display:none;"></tr>
+
+											<tr id="dnsfilter" style="display:none;">
+												<td align="center" class="app_table_radius_left" style="width:85px;">
+													<img style="margin-top:0px;" src="/images/New_ui/DnsFiltering.png" onclick="location.href='DNSFilter.asp';">
 												</td>
 												<td class="app_table_radius_right" style="width:350px;height:120px;"">
 													<div class="app_name">
@@ -129,6 +153,7 @@ function initial(){
 													</div>
 												</td>
 											</tr>
+											
 										</tbody>
 									</table>
 								
@@ -136,7 +161,8 @@ function initial(){
 							</td> 
 						</tr>  
 					</table>
-						<div style="width:100px;height:48px;margin:415px 0px 0px 625px;background-image:url('images/New_ui/tm_logo.png');"></div>
+
+					<div style="width:135px;height:55px;position:absolute;bottom:5px;right:5px;background-image:url('images/New_ui/tm_logo_power.png');"></div>
 				</div>
 		<!--=====End of Main Content=====-->
 			</td>

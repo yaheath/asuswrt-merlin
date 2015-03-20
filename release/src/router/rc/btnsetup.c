@@ -126,6 +126,10 @@
 #include <ralink.h>
 #endif
 
+#ifdef RTCONFIG_QCA
+#include <qca.h>
+#endif
+
 #define logs(fmt, arg...) //syslog(LOG_NOTICE, fmt, ##arg)
 //#include <openssl/dh.h>
 #include "crypto.c"
@@ -1518,7 +1522,7 @@ finish:
 		stop_dnsmasq(); /* stop_dhcpd(); */
 		//convert_asus_values(1);
 		//nvram_commit_safe();
-		start_dnsmasq(0); /* start_dhcpd(); */
+		start_dnsmasq(); /* start_dhcpd(); */
 		start_wan();
 #else
 		

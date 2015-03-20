@@ -32,9 +32,6 @@
 #include "odhcp6c.h"
 #include "ra.h"
 
-#ifdef EXT_BFD_PING
-#include "bfd.h"
-#endif
 
 
 static void sighandler(int signal);
@@ -69,22 +66,15 @@ int main(_unused int argc, char* const argv[])
 	int ia_pd_iaid_index = 0;
 	static struct in6_addr ifid = IN6ADDR_ANY_INIT;
 	int sol_timeout = DHCPV6_SOL_MAX_RT;
+	int verbosity = 0;
 
-#ifdef EXT_BFD_PING
-	int bfd_interval = 0, bfd_loss = 3;
-#endif
 
 	bool help = false, daemonize = false;
 	int logopt = LOG_PID;
 	int c;
-	unsigned int client_options = DHCPV6_ACCEPT_RECONFIGURE;
+	unsigned int client_options = DHCPV6_CLIENT_FQDN | DHCPV6_ACCEPT_RECONFIGURE;
 
-#ifdef EXT_CLIENT_FQDN
-	client_options | = DHCPV6_CLIENT_FQDN;
-#endif
-	loglevel = LOG_NOTICE;
-
-	while ((c = getopt(argc, argv, "S::N:V:P:FB:c:i:r:Ru:s:kt:m:hedp:fal:")) != -1) {
+	while ((c = getopt(argc, argv, "S::N:V:P:FB:c:i:r:Ru:s:kt:m:hedp:fav")) != -1) {
 		switch (c) {
 		case 'S':
 			allow_slaac_only = (optarg) ? atoi(optarg) : -1;
@@ -145,12 +135,6 @@ int main(_unused int argc, char* const argv[])
 			allow_slaac_only = -1;
 			ia_pd_mode = IA_MODE_FORCE;
 			break;
-
-#ifdef EXT_BFD_PING
-		case 'B':
-			bfd_interval = atoi(optarg);
-			break;
-#endif
 
 		case 'c':
 			l = script_unhexlify(&buf[4], sizeof(buf) - 4, optarg);
@@ -220,18 +204,16 @@ int main(_unused int argc, char* const argv[])
 			pidfile = optarg;
 			break;
 
-#ifdef EXT_CLIENT_FQDN
 		case 'f':
 			client_options &= ~DHCPV6_CLIENT_FQDN;
 			break;
-#endif
 
 		case 'a':
 			client_options &= ~DHCPV6_ACCEPT_RECONFIGURE;
 			break;
 
-		case 'l':
-			loglevel = atoi(optarg);
+		case 'v':
+			++verbosity;
 			break;
 
 		default:
@@ -241,6 +223,9 @@ int main(_unused int argc, char* const argv[])
 	}
 
 	openlog("odhcp6c", logopt, LOG_DAEMON);
+	if (!verbosity)
+		setlogmask(LOG_UPTO(LOG_WARNING));
+
 	const char *ifname = argv[optind];
 
 	if (help || !ifname)
@@ -269,19 +254,15 @@ int main(_unused int argc, char* const argv[])
 			return 4;
 		}
 
-		char pidbuf[128];
 		if (!pidfile) {
-			snprintf(pidbuf, sizeof(pidbuf),
-					"/var/run/odhcp6c.%s.pid", ifname);
-			pidfile = pidbuf;
+			snprintf((char*)buf, sizeof(buf), "/var/run/odhcp6c.%s.pid", ifname);
+			pidfile = (char*)buf;
 		}
 
-		int fd = open(pidfile, O_WRONLY | O_CREAT, 0644);
-		if (fd >= 0) {
-			char buf[8];
-			int len = snprintf(buf, sizeof(buf), "%i\n", getpid());
-			write(fd, buf, len);
-			close(fd);
+		FILE *fp = fopen(pidfile, "w");
+		if (fp) {
+			fprintf(fp, "%i\n", getpid());
+			fclose(fp);
 		}
 	}
 
@@ -289,6 +270,7 @@ int main(_unused int argc, char* const argv[])
 
 	while (!signal_term) { // Main logic
 		odhcp6c_clear_state(STATE_SERVER_ID);
+		odhcp6c_clear_state(STATE_SERVER_ADDR);
 		odhcp6c_clear_state(STATE_IA_NA);
 		odhcp6c_clear_state(STATE_IA_PD);
 		odhcp6c_clear_state(STATE_SNTP_IP);
@@ -299,7 +281,7 @@ int main(_unused int argc, char* const argv[])
 		dhcpv6_set_ia_mode(ia_na_mode, ia_pd_mode);
 		bound = false;
 
-		syslog(loglevel, "(re)starting transaction on %s", ifname);
+		syslog(LOG_NOTICE, "(re)starting transaction on %s", ifname);
 
 		signal_usr1 = signal_usr2 = false;
 		int mode = dhcpv6_request(DHCPV6_MSG_SOLICIT);
@@ -329,7 +311,7 @@ int main(_unused int argc, char* const argv[])
 		switch (mode) {
 		case DHCPV6_STATELESS:
 			bound = true;
-			syslog(loglevel, "entering stateless-mode on %s", ifname);
+			syslog(LOG_NOTICE, "entering stateless-mode on %s", ifname);
 
 			while (!signal_usr2 && !signal_term) {
 				signal_usr1 = false;
@@ -358,13 +340,9 @@ int main(_unused int argc, char* const argv[])
 			break;
 
 		case DHCPV6_STATEFUL:
-			script_call("bound");
 			bound = true;
-			syslog(loglevel, "entering stateful-mode on %s", ifname);
-#ifdef EXT_BFD_PING
-			if (bfd_interval > 0)
-				bfd_start(ifname, bfd_loss, bfd_interval);
-#endif
+			script_call("bound");
+			syslog(LOG_NOTICE, "entering stateful-mode on %s", ifname);
 
 			while (!signal_usr2 && !signal_term) {
 				// Renew Cycle
@@ -392,6 +370,7 @@ int main(_unused int argc, char* const argv[])
 				}
 
 				odhcp6c_clear_state(STATE_SERVER_ID); // Remove binding
+				odhcp6c_clear_state(STATE_SERVER_ADDR);
 
 				size_t ia_pd_len, ia_na_len;
 				odhcp6c_get_state(STATE_IA_PD, &ia_pd_len);
@@ -407,9 +386,6 @@ int main(_unused int argc, char* const argv[])
 				if (res > 0)
 					script_call("rebound");
 				else {
-#ifdef EXT_BFD_PING
-					bfd_stop();
-#endif
 					break;
 				}
 			}
@@ -418,6 +394,8 @@ int main(_unused int argc, char* const argv[])
 		default:
 			break;
 		}
+
+		odhcp6c_expire();
 
 		size_t ia_pd_len, ia_na_len, server_id_len;
 		odhcp6c_get_state(STATE_IA_PD, &ia_pd_len);
@@ -450,19 +428,14 @@ static int usage(void)
 	"	-P <length>	Request IPv6-Prefix (0 = auto)\n"
 	"	-F		Force IPv6-Prefix\n"
 	"	-V <class>	Set vendor-class option (base-16 encoded)\n"
-#ifdef EXT_BFD_PING
-	"	-B <interval>	Enable BFD ping check\n"
-#endif
 	"	-u <user-class> Set user-class option string\n"
-	"	-c <clientid>	Override client-ID (base-16 encoded)\n"
+	"	-c <clientid>	Override client-ID (base-16 encoded 16-bit type + value)\n"
 	"	-i <iface-id>	Use a custom interface identifier for RA handling\n"
 	"	-r <options>	Options to be requested (comma-separated)\n"
 	"	-R		Do not request any options except those specified with -r\n"
 	"	-s <script>	Status update script (/usr/sbin/odhcp6c-update)\n"
 	"	-a		Don't send Accept Reconfigure option\n"
-#ifdef EXT_CLIENT_FQDN
 	"	-f		Don't send Client FQDN option\n"
-#endif
 	"	-k		Don't send a RELEASE when stopping\n"
 	"	-t <seconds>	Maximum timeout for DHCPv6-SOLICIT (3600)\n"
 	"	-m <seconds>	Minimum time between accepting updates (30)\n"
@@ -470,8 +443,7 @@ static int usage(void)
 	"	-p <pidfile>	Set pidfile (/var/run/odhcp6c.pid)\n"
 	"	-d		Daemonize\n"
 	"	-e		Write logmessages to stderr\n"
-	//"	-v		Increase logging verbosity\n"
-	"	-l <level>	Set desired log level (notice)\n"
+	"	-v		Increase logging verbosity\n"
 	"	-h		Show this help\n\n";
 	write(STDERR_FILENO, buf, sizeof(buf));
 	return 1;
@@ -514,14 +486,8 @@ bool odhcp6c_signal_process(void)
 		if (ra_link_up())
 			signal_usr2 = true;
 
-		if (ra_updated && (bound || allow_slaac_only == 0))
+		if (ra_updated && (bound || allow_slaac_only >= 0))
 			script_call("ra-updated"); // Immediate process urgent events
-		else if (ra_updated && !bound && allow_slaac_only > 0)
-			script_delay_call("ra-updated", allow_slaac_only);
-
-#ifdef EXT_BFD_PING
-		bfd_receive();
-#endif
 	}
 
 	return signal_usr1 || signal_usr2 || signal_term;
@@ -601,7 +567,8 @@ struct odhcp6c_entry* odhcp6c_find_entry(enum odhcp6c_state state, const struct 
 }
 
 
-bool odhcp6c_update_entry_safe(enum odhcp6c_state state, struct odhcp6c_entry *new, uint32_t safe)
+bool odhcp6c_update_entry(enum odhcp6c_state state, struct odhcp6c_entry *new,
+		uint32_t safe, bool filterexcess)
 {
 	size_t len;
 	struct odhcp6c_entry *x = odhcp6c_find_entry(state, new);
@@ -612,7 +579,8 @@ bool odhcp6c_update_entry_safe(enum odhcp6c_state state, struct odhcp6c_entry *n
 
 	if (new->valid > 0) {
 		if (x) {
-			if (new->valid >= x->valid && new->valid != UINT32_MAX &&
+			if (filterexcess && new->valid >= x->valid &&
+					new->valid != UINT32_MAX &&
 					new->valid - x->valid < min_update_interval &&
 					new->preferred >= x->preferred &&
 					new->preferred != UINT32_MAX &&
@@ -632,12 +600,6 @@ bool odhcp6c_update_entry_safe(enum odhcp6c_state state, struct odhcp6c_entry *n
 		odhcp6c_remove_state(state, (x - start) * sizeof(*x), sizeof(*x));
 	}
 	return true;
-}
-
-
-bool odhcp6c_update_entry(enum odhcp6c_state state, struct odhcp6c_entry *new)
-{
-	return odhcp6c_update_entry_safe(state, new, 0);
 }
 
 

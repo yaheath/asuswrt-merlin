@@ -49,6 +49,10 @@
 #include <ralink.h>
 #endif
 
+#ifdef RTCONFIG_QCA
+#include <qca.h>
+#endif
+
 #include <mtd.h>
 
 void update_lan_status(int);
@@ -374,8 +378,9 @@ int pppstatus(void)
 	FILE *fp;
 	char sline[128], buf[128], *p;
 
-	if ((fp=fopen("/tmp/wanstatus.log", "r")) && fgets(sline, sizeof(sline), fp))
+	if ((fp = fopen("/tmp/wanstatus.log", "r")) && fgets(sline, sizeof(sline), fp))
 	{
+		fcntl(fileno(fp), F_SETFL, fcntl(fileno(fp), F_GETFL) | O_NONBLOCK);
 		p = strstr(sline, ",");
 		strcpy(buf, p+1);
 	}
@@ -1241,6 +1246,26 @@ void time_zone_x_mapping(void)
 		nvram_set("time_zone", "UCT-9_1");
 	else if (nvram_match("time_zone", "RFT-9RFTDST"))
 		nvram_set("time_zone", "UCT-9_2");
+	else if (nvram_match("time_zone", "UTC-2DST_1"))	/*Minsk*/
+		nvram_set("time_zone", "UTC-3_3");
+	else if (nvram_match("time_zone", "UTC-4_2"))		/*Moscow, St. Petersburg*/
+		nvram_set("time_zone", "UTC-3_4");
+	else if (nvram_match("time_zone", "UTC-4_3"))		/*Volgograd*/
+		nvram_set("time_zone", "UTC-3_5");
+	else if (nvram_match("time_zone", "UTC-6_1"))		/*Yekaterinburg*/
+		nvram_set("time_zone", "UTC-5_1");
+	else if (nvram_match("time_zone", "UTC-7_1"))		/*Novosibirsk*/
+		nvram_set("time_zone", "UTC-6_2");
+	else if (nvram_match("time_zone", "CST-8_2"))		/*Krasnoyarsk*/
+		nvram_set("time_zone", "CST-7_2");
+	else if (nvram_match("time_zone", "UTC-9_2"))		/*Irkutsk*/
+		nvram_set("time_zone", "UTC-8_1");
+	else if (nvram_match("time_zone", "UTC-10_3"))		/*Yakutsk*/
+		nvram_set("time_zone", "UTC-9_3");
+	else if (nvram_match("time_zone", "UTC-11_2"))		/*Vladivostok*/
+		nvram_set("time_zone", "UTC-10_4");
+	else if (nvram_match("time_zone", "UTC-12_1"))          /*Magadan*/
+		nvram_set("time_zone", "UTC-10_5");
 
 	snprintf(tmpstr, sizeof(tmpstr), "%s", nvram_safe_get("time_zone"));
 	/* replace . with : */
@@ -1280,7 +1305,7 @@ void
 setup_timezone(void)
 {
 #ifndef RC_BUILDTIME
-#define RC_BUILDTIME	1293840000	// Jan 1 00:00:00 GMT 2011
+#define RC_BUILDTIME	1420070400	// Jan 1 00:00:00 GMT 2015
 #endif
 	time_t now;
 	struct tm gm, local;
@@ -1364,7 +1389,6 @@ is_valid_hostname(const char *name)
 
 int get_meminfo_item(const char *name)
 {
-	int ret = 0;
 	FILE *fp;
 	char memdata[256] = {0};
 	int mem = 0;
@@ -1376,7 +1400,7 @@ int get_meminfo_item(const char *name)
 		/* get one memory parameter specified by the name */
 		while (fgets(memdata, 255, fp) != NULL) {
 			if (strstr(memdata, name) != NULL) {
-				ret = sscanf(memdata, "%*s %d kB", &mem);
+				sscanf(memdata, "%*s %d kB", &mem);
 				break;
 			}
 		}
@@ -1425,7 +1449,7 @@ void restart_lfp()
 #endif
 
 #ifdef RTCONFIG_WIRELESSREPEATER
-void setup_dnsmq(int mode)
+int setup_dnsmq(int mode)
 {
 	char v[32];
 	char tmp[32];
@@ -1458,58 +1482,10 @@ void setup_dnsmq(int mode)
 	
 		f_write_string("/proc/net/dnsmqctrl", "", 0, 0);
 	}
+
+	return 0;
 }
 #endif
-
-void run_custom_script(char *name, char *args)
-{
-	char script[120];
-
-	sprintf(script, "/jffs/scripts/%s", name);
-
-	if(f_exists(script)) {
-		_dprintf("Script: running %s (args: %s)\n", script, args);
-		xstart(script, args);
-	}
-}
-
-void run_custom_script_blocking(char *name, char *args)
-{
-	char script[120];
-
-	sprintf(script, "/jffs/scripts/%s", name);
-
-	if(f_exists(script)) {
-		_dprintf("Script: running %s\n", script);
-		eval(script, args);
-	}
-
-}
-
-void run_postconf(char *name, char *config)
-{
-	run_custom_script_blocking(name, config);
-}
-
-
-void use_custom_config(char *config, char *target)
-{
-        char filename[256];
-        sprintf(filename,"/jffs/configs/%s", config);
-
-	if (check_if_file_exist(filename)) {
-		eval("cp", filename, target, NULL);
-	}
-}
-
-
-void append_custom_config(char *config, FILE *fp)
-{
-	char filename[256];
-
-	sprintf(filename,"/jffs/configs/%s.add", config);
-	fappend(fp, filename);
-}
 
 int
 is_invalid_char_for_volname(char c)

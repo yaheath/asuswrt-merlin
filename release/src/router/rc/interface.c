@@ -411,17 +411,31 @@ int start_vlan(void)
 			eval("vconfig", "set_ingress_map", vlan_id, prio, prio);
 		}
 	}
-#if defined(RTN14U) || defined(RTAC52U) || defined(RTAC51U) || defined(RTN11P) || defined(RTN54U)
-	eval("vconfig", "set_egress_map", "vlan2", "0", nvram_safe_get("switch_wan0prio"));
-#endif
 	close(s);
 
+#if defined(RTN14U) || defined(RTAC52U) || defined(RTAC51U) || defined(RTN11P) || defined(RTN54U) || defined(RTAC1200HP) || defined(RTN56UB1)|| defined(RTAC54U)
+	eval("vconfig", "set_egress_map", "vlan2", "0", nvram_safe_get("switch_wan0prio"));
+#elif defined(RTCONFIG_QCA)
+	if(!nvram_match("switch_wantag", "none")&&!nvram_match("switch_wantag", ""))
+	{
+		char *wan_base_if = "eth0";
+		set_wan_tag(wan_base_if);
+	}
+#endif
 #ifdef CONFIG_BCMWL5
 	if(!nvram_match("switch_wantag", "none")&&!nvram_match("switch_wantag", ""))
 		set_wan_tag(&ifr.ifr_name);
 #endif
 #ifdef RTCONFIG_RGMII_BRCM5301X
-	eval("et", "robowr", "0x0", "0x5d", "0xfb", "1");
+	switch (get_model()) {
+		case MODEL_RTAC88U:
+			break;
+		default:
+			// port 5 ??
+			eval("et", "robowr", "0x0", "0x5d", "0xfb", "1");
+			// port 4 link down
+			eval("et", "robowr", "0x0", "0x5c", "0x4a", "1");
+	}
 #endif
 
 	return 0;

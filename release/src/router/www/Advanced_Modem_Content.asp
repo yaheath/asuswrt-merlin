@@ -55,13 +55,10 @@
 <script type="text/javascript" src="/general.js"></script>
 <script type="text/javascript" src="/popup.js"></script>
 <script type="text/javascript" src="/help.js"></script>
-<script type="text/javascript" src="/detect.js"></script>
 <script type="text/javascript" src="/wcdma_list.js"></script>
 <script type="text/javaScript" src="/jquery.js"></script>
 <script>
 
-<% login_state_hook(); %>
-var wireless = [<% wl_auth_list(); %>];	// [[MAC, associated, authorized], ...]
 var modem = '<% nvram_get("Dev3G"); %>';
 var country = '<% nvram_get("modem_country"); %>';
 var isp = '<% nvram_get("modem_isp"); %>';
@@ -133,8 +130,8 @@ function initial(){
 	reloadProfile();
 
 	if(!dualWAN_support){		
-		$("option5").innerHTML = '<table><tbody><tr><td><div id="index_img5"></div></td><td><div style="width:120px;"><#Menu_usb_application#></div></td></tr></tbody></table>';
-		$("option5").className = "m5_r";
+		document.getElementById("_APP_Installation").innerHTML = '<table><tbody><tr><td><div class="_APP_Installation"></div></td><td><div style="width:120px;"><#Menu_usb_application#></div></td></tr></tbody></table>';
+		document.getElementById("_APP_Installation").className = "menu_clicked";
 	}
 
   if(!wimax_support){
@@ -324,7 +321,7 @@ function show_ISP_list(){
 			if(document.form.modem_isp.options.length > 0)
 				continue;
 			else{
-				alert('We currently do not support this location, please use "Manual"!');
+				alert(Untranslated.ISP_not_support);
 				document.form.modem_country.focus();
 				document.form.modem_country.selectedIndex = countrylist.length-1;
 				break;
@@ -444,6 +441,13 @@ function applyRule(){
 			alert("<#JS_InvalidPIN#>");
 			return;
 		}
+	}
+
+	if(document.form.modem_country.value == ""){
+		var valueStr = "";
+		document.form.modem_isp.disabled = false;;
+		document.form.modem_isp.options.length = 1;
+		document.form.modem_isp.options[0] = new Option(valueStr, valueStr, false, true);
 	}
 
 	showLoading(); 
@@ -676,7 +680,7 @@ function check_dongle_status(){
 							<br/><span id="hsdpa_hint" style="display:none;"><#HSDPAConfig_hsdpa_enable_hint2#></span>
 						</td>
 					</tr>
-					<tr>
+					<!--tr>
 						<th width="40%">
 							<a class="hintstyle" href="javascript:void(0);"><#Network_type#></a>
 						</th>
@@ -689,12 +693,12 @@ function check_dongle_status(){
 								<option value="2" <% nvram_match("modem_mode", "2", "selected"); %>>2G only</option>
 							</select>
 						</td>
-					</tr>
+					</tr-->
 
           <tr>
 						<th><a class="hintstyle"  href="javascript:void(0);" onClick="openHint(21,3);"><#HSDPAConfig_private_apn_itemname#></a></th>
             <td>
-            	<input id="modem_apn" name="modem_apn" class="input_20_table" type="text" value=""/>
+            	<input id="modem_apn" name="modem_apn" class="input_20_table" maxlength="32" type="text" value=""/>
            		<img id="pull_arrow" height="14px;" src="/images/arrow-down.gif" style="position:absolute;*margin-left:-3px;*margin-top:1px;" onclick="pullLANIPList(this);" title="<#select_APN_service#>" onmouseover="over_var=1;" onmouseout="over_var=0;">
 							<div id="ClientList_Block_PC" class="ClientList_Block_PC"></div>
 						</td>
@@ -703,7 +707,7 @@ function check_dongle_status(){
 					<tr>
 						<th><a class="hintstyle" href="javascript:void(0);" onClick="openHint(21,10);"><#HSDPAConfig_DialNum_itemname#></a></th>
 						<td>
-							<input id="modem_dialnum" name="modem_dialnum" class="input_20_table" type="text" value=""/>
+							<input id="modem_dialnum" name="modem_dialnum" class="input_20_table" maxlength="32" type="text" value=""/>
 						</td>
 					</tr>
 					
@@ -718,21 +722,21 @@ function check_dongle_status(){
 					<tr>
 						<th><a class="hintstyle"  href="javascript:void(0);" onClick="openHint(21,11);"><#HSDPAConfig_Username_itemname#></a></th>
 						<td>
-						<input id="modem_user" name="modem_user" class="input_20_table" type="text" value="<% nvram_get("modem_user"); %>"/>
+						<input id="modem_user" name="modem_user" class="input_20_table" maxlength="32" type="text" value="<% nvram_get("modem_user"); %>"/>
 						</td>
 					</tr>
                                 
 					<tr>
 						<th><a class="hintstyle"  href="javascript:void(0);" onClick="openHint(21,12);"><#PPPConnection_Password_itemname#></a></th>
 						<td>
-							<input id="modem_pass" name="modem_pass" class="input_20_table" type="password" value="<% nvram_get("modem_pass"); %>"/>
+							<input id="modem_pass" name="modem_pass" class="input_20_table" maxlength="32" type="password" value="<% nvram_get("modem_pass"); %>"/>
 						</td>
 					</tr>
 
 					<tr>
 						<th>E-mail</th>
 						<td>
-							<input id="modem_ttlsid" name="modem_ttlsid" class="input_20_table" value="<% nvram_get("modem_ttlsid"); %>"/>
+							<input id="modem_ttlsid" name="modem_ttlsid" class="input_20_table" maxlength="64" value="<% nvram_get("modem_ttlsid"); %>"/>
 						</td>
 					</tr>
                                 

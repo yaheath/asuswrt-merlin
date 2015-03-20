@@ -12,10 +12,10 @@
 <link rel="stylesheet" type="text/css" href="index_style.css"> 
 <link rel="stylesheet" type="text/css" href="form_style.css">
 <link rel="stylesheet" type="text/css" href="usp_style.css">
-<script type="text/javascript" src="/detect.js"></script>
 <script type="text/javascript" src="/state.js"></script>
 <script type="text/javascript" src="/popup.js"></script>
 <script type="text/javascript" src="/help.js"></script>
+<script type="text/javascript" src="/validator.js"></script>
 <script type="text/javascript" src="/jquery.js"></script>
 <script type="text/javascript" src="/general.js"></script>
 <script type="text/javascript" src="/switcherplugin/jquery.iphone-switch.js"></script>
@@ -64,7 +64,7 @@ function initial(){
 	}
 	
 	init_changeScale();
-	addOnlineHelp($("faq"), ["ASUSWRT", "QoS"]);
+	//addOnlineHelp($("faq"), ["ASUSWRT", "QoS"]);
 }
 
 function init_changeScale(){
@@ -146,8 +146,14 @@ function submitQoS(){
 		document.form.qos_ibw.value = document.form.ibw.value*1024;
 	}	
 
-	if(document.form.qos_enable.value != document.form.qos_enable_orig.value)
-		FormActions("start_apply.htm", "apply", "reboot", "<% get_default_reboot_time(); %>");	
+	if(document.form.qos_enable.value != document.form.qos_enable_orig.value){
+		if(Rawifi_support || Qcawifi_support){
+			document.form.action_script.value = "restart_qos;restart_firewall";
+		}
+		else{		//Broadcom
+			FormActions("start_apply.htm", "apply", "reboot", "<% get_default_reboot_time(); %>");
+		}
+	}
 
 	showLoading();
 	document.form.submit();		
@@ -157,8 +163,9 @@ function change_qos_type(value){
 	if(value == 0){		//Traditional
 		$('int_type').checked = false;
 		$('trad_type').checked = true;	
-		if(document.form.qos_type_orig.value == 0 && document.form.qos_enable_orig.value != 0)
+		if(document.form.qos_type_orig.value == 0 && document.form.qos_enable_orig.value != 0){
 			document.form.action_script.value = "restart_qos;restart_firewall";
+		}	
 		else{
 			document.form.action_script.value = "reboot";
 			document.form.next_page.value = "Advanced_QOSUserRules_Content.asp";
@@ -255,10 +262,10 @@ function change_qos_type(value){
 															<li><#EzQoS_desc_Adaptive#></li>
 															<li><#EzQoS_desc_Traditional#></li>
 														</ul>
-														To enable QoS function, click the QoS slide switch , and fill in the upload and download Get the bandwidth information from ISP or go to <a href="http://speedtest.net" target="_blank" style="text-decoration:underline;">http://speedtest.net</a> to check bandwidth.
+														<#EzQoS_desc_note#>
 													</div>
 													<div class="formfontdesc">
-														<a id="faq" href="" target="_blank" style="text-decoration:underline;">QoS FAQ</a>
+														<a id="faq" href="http://www.asus.com/us/support/FAQ/1008718/" target="_blank" style="text-decoration:underline;">QoS FAQ</a>
 													</div>
 												</td>
 											</tr>
@@ -278,7 +285,6 @@ function change_qos_type(value){
 															 function() {
 																document.form.qos_enable.value = 1;
 																if(document.form.qos_enable_orig.value != 1){
-																	document.form.action_script.value = "reboot";
 																	if($('int_type').checked == true && bwdpi_support)
 																		document.form.next_page.value = "AdaptiveQoS_Adaptive.asp";
 																	else
@@ -294,18 +300,14 @@ function change_qos_type(value){
 																}	
 															 },
 															 function() {
-																document.form.qos_enable.value = 0;
-																if(document.form.qos_enable_orig.value != 0)
-																	document.form.action_script.value = "reboot";
-																
+																document.form.qos_enable.value = 0;																
 																$('upload_tr').style.display = "none";
 																$('download_tr').style.display = "none";
 	
-																if(bwdpi_support)
+																if(bwdpi_support){
 																	$('qos_type_tr').style.display = "none";
-															 },
-															 {
-																switch_on_container_path: '/switcherplugin/iphone_switch_container_off.png'
+																	$('qos_enable_hint').style.display = "none";
+																}	
 															 }
 														);
 													</script>			
@@ -315,14 +317,14 @@ function change_qos_type(value){
 										<tr id="upload_tr">
 											<th><a class="hintstyle" href="javascript:void(0);" onClick="openHint(20, 2);"><#upload_bandwidth#></a></th>
 											<td>
-												<input type="text" maxlength="10" id="obw" name="obw" onKeyPress="return is_number_float(this,event);" class="input_15_table" value="">
+												<input type="text" maxlength="10" id="obw" name="obw" onKeyPress="return validator.isNumberFloat(this,event);" class="input_15_table" value="">
 												<label style="margin-left:5px;">Mb/s</label>
 											</td>
 										</tr>											
 										<tr id="download_tr">
 											<th><a class="hintstyle" href="javascript:void(0);" onClick="openHint(20, 2);"><#download_bandwidth#></a></th>
 											<td>
-												<input type="text" maxlength="10" id="ibw" name="ibw" onKeyPress="return is_number_float(this,event);" class="input_15_table" value="">
+												<input type="text" maxlength="10" id="ibw" name="ibw" onKeyPress="return validator.isNumberFloat(this,event);" class="input_15_table" value="">
 												<label style="margin-left:5px;">Mb/s</label>
 											</td>
 										</tr>										

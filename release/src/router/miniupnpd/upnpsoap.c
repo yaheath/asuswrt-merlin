@@ -1,7 +1,7 @@
-/* $Id: upnpsoap.c,v 1.123 2014/04/09 12:39:54 nanard Exp $ */
+/* $Id: upnpsoap.c,v 1.135 2015/02/10 15:01:24 nanard Exp $ */
 /* MiniUPnP project
  * http://miniupnp.free.fr/ or http://miniupnp.tuxfamily.org/
- * (c) 2006-2014 Thomas Bernard
+ * (c) 2006-2015 Thomas Bernard
  * This software is subject to the conditions detailed
  * in the LICENCE file provided within the distribution */
 
@@ -45,17 +45,21 @@ BuildSendAndCloseSoapResp(struct upnphttp * h,
 		"</s:Body>"
 		"</s:Envelope>\r\n";
 
-	BuildHeader_upnphttp(h, 200, "OK",  sizeof(beforebody) - 1
-		+ sizeof(afterbody) - 1 + bodylen );
+	int r = BuildHeader_upnphttp(h, 200, "OK",  sizeof(beforebody) - 1
+	                             + sizeof(afterbody) - 1 + bodylen );
 
-	memcpy(h->res_buf + h->res_buflen, beforebody, sizeof(beforebody) - 1);
-	h->res_buflen += sizeof(beforebody) - 1;
+	if(r >= 0) {
+		memcpy(h->res_buf + h->res_buflen, beforebody, sizeof(beforebody) - 1);
+		h->res_buflen += sizeof(beforebody) - 1;
 
-	memcpy(h->res_buf + h->res_buflen, body, bodylen);
-	h->res_buflen += bodylen;
+		memcpy(h->res_buf + h->res_buflen, body, bodylen);
+		h->res_buflen += bodylen;
 
-	memcpy(h->res_buf + h->res_buflen, afterbody, sizeof(afterbody) - 1);
-	h->res_buflen += sizeof(afterbody) - 1;
+		memcpy(h->res_buf + h->res_buflen, afterbody, sizeof(afterbody) - 1);
+		h->res_buflen += sizeof(afterbody) - 1;
+	} else {
+		BuildResp2_upnphttp(h, 500, "Internal Server Error", NULL, 0);
+	}
 
 	SendRespAndClose_upnphttp(h);
 }
@@ -170,8 +174,7 @@ GetCommonLinkProperties(struct upnphttp * h, const char * action)
 	static const char resp[] =
 		"<u:%sResponse "
 		"xmlns:u=\"%s\">"
-		/*"<NewWANAccessType>DSL</NewWANAccessType>"*/
-		"<NewWANAccessType>Cable</NewWANAccessType>"
+		"<NewWANAccessType>%s</NewWANAccessType>"
 		"<NewLayer1UpstreamMaxBitRate>%lu</NewLayer1UpstreamMaxBitRate>"
 		"<NewLayer1DownstreamMaxBitRate>%lu</NewLayer1DownstreamMaxBitRate>"
 		"<NewPhysicalLinkStatus>%s</NewPhysicalLinkStatus>"
@@ -182,6 +185,7 @@ GetCommonLinkProperties(struct upnphttp * h, const char * action)
 	struct ifdata data;
 	const char * status = "Up";	/* Up, Down (Required),
 	                             * Initializing, Unavailable (Optional) */
+	const char * wan_access_type = "Cable"; /* DSL, POTS, Cable, Ethernet */
 	char ext_ip_addr[INET_ADDRSTRLEN];
 
 	if((downstream_bitrate == 0) || (upstream_bitrate == 0))
@@ -197,7 +201,8 @@ GetCommonLinkProperties(struct upnphttp * h, const char * action)
 	}
 	bodylen = snprintf(body, sizeof(body), resp,
 	    action, "urn:schemas-upnp-org:service:WANCommonInterfaceConfig:1",
-		upstream_bitrate, downstream_bitrate,
+	    wan_access_type,
+	    upstream_bitrate, downstream_bitrate,
 	    status, action);
 	BuildSendAndCloseSoapResp(h, body, bodylen);
 }
@@ -676,19 +681,24 @@ DeletePortMapping(struct upnphttp * h, const char * action)
 		"</u:DeletePortMappingResponse>";
 
 	struct NameValueParserData data;
-	const char * r_host, * ext_port, * protocol;
+	const char * ext_port, * protocol;
 	unsigned short eport;
+#ifdef UPNP_STRICT
+	const char * r_host;
+#endif /* UPNP_STRICT */
 
 	ParseNameValue(h->req_buf + h->req_contentoff, h->req_contentlen, &data);
-	r_host = GetValueFromNameValueList(&data, "NewRemoteHost");
 	ext_port = GetValueFromNameValueList(&data, "NewExternalPort");
 	protocol = GetValueFromNameValueList(&data, "NewProtocol");
+#ifdef UPNP_STRICT
+	r_host = GetValueFromNameValueList(&data, "NewRemoteHost");
+#endif /* UPNP_STRICT */
 
 #ifdef UPNP_STRICT
 	if(!ext_port || !protocol || !r_host)
 #else
 	if(!ext_port || !protocol)
-#endif
+#endif /* UPNP_STRICT */
 	{
 		ClearNameValueList(&data);
 		SoapError(h, 402, "Invalid Args");
@@ -702,18 +712,42 @@ DeletePortMapping(struct upnphttp * h, const char * action)
 		SoapError(h, 726, "RemoteHostOnlySupportsWildcard");
 		return;
 	}
-#endif
-#endif
+#endif /* UPNP_STRICT */
+#endif /* SUPPORT_REMOTEHOST */
 
 	eport = (unsigned short)atoi(ext_port);
 
-	/* TODO : if in secure mode, check the IP
+	syslog(LOG_INFO, "%s: external port: %hu, protocol: %s",
+		action, eport, protocol);
+
+	/* if in secure mode, check the IP
 	 * Removing a redirection is not a security threat,
 	 * just an annoyance for the user using it. So this is not
 	 * a priority. */
-
-	syslog(LOG_INFO, "%s: external port: %hu, protocol: %s",
-		action, eport, protocol);
+	if(GETFLAG(SECUREMODEMASK))
+	{
+		char int_ip[32];
+		struct in_addr int_ip_addr;
+		unsigned short iport;
+		unsigned int leaseduration = 0;
+		r = upnp_get_redirection_infos(eport, protocol, &iport,
+		                               int_ip, sizeof(int_ip),
+		                               NULL, 0, NULL, 0,
+		                               &leaseduration);
+		if(r >= 0)
+		{
+			if(inet_pton(AF_INET, int_ip, &int_ip_addr) > 0)
+			{
+				if(h->clientaddr.s_addr != int_ip_addr.s_addr)
+				{
+					SoapError(h, 606, "Action not authorized");
+					/*SoapError(h, 714, "NoSuchEntryInArray");*/
+					ClearNameValueList(&data);
+					return;
+				}
+			}
+		}
+	}
 
 	r = upnp_delete_redirection(eport, protocol);
 
@@ -1006,6 +1040,7 @@ http://www.upnp.org/schemas/gw/WANIPConnection-v2.xsd">
 			body = realloc(body, bodyalloc);
 			if(!body)
 			{
+				syslog(LOG_CRIT, "realloc(%p, %u) FAILED", body_sav, (unsigned)bodyalloc);
 				ClearNameValueList(&data);
 				SoapError(h, 501, "ActionFailed");
 				free(body_sav);
@@ -1030,6 +1065,20 @@ http://www.upnp.org/schemas/gw/WANIPConnection-v2.xsd">
 	free(port_list);
 	port_list = NULL;
 
+	if((bodylen + sizeof(list_end) + 1024) > bodyalloc)
+	{
+		char * body_sav = body;
+		bodyalloc += (sizeof(list_end) + 1024);
+		body = realloc(body, bodyalloc);
+		if(!body)
+		{
+			syslog(LOG_CRIT, "realloc(%p, %u) FAILED", body_sav, (unsigned)bodyalloc);
+			ClearNameValueList(&data);
+			SoapError(h, 501, "ActionFailed");
+			free(body_sav);
+			return;
+		}
+	}
 	memcpy(body+bodylen, list_end, sizeof(list_end));
 	bodylen += (sizeof(list_end) - 1);
 	bodylen += snprintf(body+bodylen, bodyalloc-bodylen, resp_end,
@@ -1101,19 +1150,21 @@ GetDefaultConnectionService(struct upnphttp * h, const char * action)
 static void
 SetConnectionType(struct upnphttp * h, const char * action)
 {
+#ifdef UPNP_STRICT
 	const char * connection_type;
+#endif /* UPNP_STRICT */
 	struct NameValueParserData data;
 	UNUSED(action);
 
 	ParseNameValue(h->req_buf + h->req_contentoff, h->req_contentlen, &data);
-	connection_type = GetValueFromNameValueList(&data, "NewConnectionType");
 #ifdef UPNP_STRICT
+	connection_type = GetValueFromNameValueList(&data, "NewConnectionType");
 	if(!connection_type) {
 		ClearNameValueList(&data);
 		SoapError(h, 402, "Invalid Args");
 		return;
 	}
-#endif
+#endif /* UPNP_STRICT */
 	/* Unconfigured, IP_Routed, IP_Bridged */
 	ClearNameValueList(&data);
 	/* always return a ReadOnly error */
@@ -1433,7 +1484,7 @@ AddPinhole(struct upnphttp * h, const char * action)
 	}
 	/* I guess it is useless to convert int_ip to literal ipv6 address */
 	/* rem_host should be converted to literal ipv6 : */
-	if(rem_host)
+	if(rem_host && (rem_host[0] != '\0'))
 	{
 		struct addrinfo *ai, *p;
 		struct addrinfo hints;
@@ -2018,34 +2069,32 @@ ExecuteSoapAction(struct upnphttp * h, const char * action, int n)
 	char * p2;
 	int i, len, methodlen;
 
-	i = 0;
+	/* SoapAction example :
+	 * urn:schemas-upnp-org:service:WANIPConnection:1#GetStatusInfo */
 	p = strchr(action, '#');
-
-	if(p)
-	{
+	if(p && (p - action) < n) {
 		p++;
 		p2 = strchr(p, '"');
-		if(p2)
+		if(p2 && (p2 - action) <= n)
 			methodlen = p2 - p;
 		else
 			methodlen = n - (p - action);
-		/*syslog(LOG_DEBUG, "SoapMethod: %.*s", methodlen, p);*/
-		while(soapMethods[i].methodName)
-		{
+		/*syslog(LOG_DEBUG, "SoapMethod: %.*s %d %d %p %p %d",
+		       methodlen, p, methodlen, n, action, p, (int)(p - action));*/
+		for(i = 0; soapMethods[i].methodName; i++) {
 			len = strlen(soapMethods[i].methodName);
-			if((len == methodlen) && memcmp(p, soapMethods[i].methodName, len) == 0)
-			{
+			if((len == methodlen) && memcmp(p, soapMethods[i].methodName, len) == 0) {
 #ifdef DEBUG
-				syslog(LOG_DEBUG, "Remote Call of SoapMethod '%s'\n",
+				syslog(LOG_DEBUG, "Remote Call of SoapMethod '%s'",
 				       soapMethods[i].methodName);
-#endif
+#endif /* DEBUG */
 				soapMethods[i].methodImpl(h, soapMethods[i].methodName);
 				return;
 			}
-			i++;
 		}
-
 		syslog(LOG_NOTICE, "SoapMethod: Unknown: %.*s", methodlen, p);
+	} else {
+		syslog(LOG_NOTICE, "cannot parse SoapAction");
 	}
 
 	SoapError(h, 401, "Invalid Action");

@@ -18,11 +18,22 @@
 <script language="JavaScript" type="text/javascript" src="/general.js"></script>
 <script language="JavaScript" type="text/javascript" src="/popup.js"></script>
 <script language="JavaScript" type="text/javascript" src="/help.js"></script>
-<script language="JavaScript" type="text/javascript" src="/detect.js"></script>
 
 <script>
 function initial(){
 	show_menu();
+	change_dsl_diag_enable(0);
+}
+
+function updateUSBStatus(){	
+	if(allUsbStatus.search("storage") == "-1"){			
+			document.getElementById("storage_ready").style.display = "none";
+			document.getElementById("be_lack_storage").style.display = "";
+	}
+	else{		
+			document.getElementById("storage_ready").style.display = "";
+			document.getElementById("be_lack_storage").style.display = "none";
+	}					
 }
 
 function redirect(){
@@ -50,7 +61,7 @@ function applyRule(){
 			document.form.PM_attach_iptables.value = 0;
                 
 		if(document.form.fb_email.value == ""){
-			if(!confirm("E-mail address field is empty. Are you sure you want to proceed?")){
+			if(!confirm("<#feedback_email_confirm#>")){
 				document.form.fb_email.focus();
 				return false;
 			}
@@ -58,13 +69,17 @@ function applyRule(){
 		else{	//validate email
 			
 				if(!isEmail(document.form.fb_email.value)){
-						alert("The format of E-mail address is not valid.");    					
+						alert("<#feedback_email_alert#>");    					
 						document.form.fb_email.focus();
 						return false;
 				}
 		}
 		document.form.fb_browserInfo.value = navigator.userAgent;
-		showLoading(60);
+		if(document.form.dslx_diag_enable[0].checked == true){
+			document.form.action_wait.value="120";
+			showLoading(120);
+		}else	
+			showLoading(60);
 		document.form.submit();
 	}
 	else{
@@ -85,6 +100,23 @@ function textCounter(field, cnt, upper) {
                 field.value = field.value.substring(0, upper);
         else
                 cnt.value = upper - field.value.length;
+}
+
+function change_dsl_diag_enable(value) {
+	if(value) {
+		if(allUsbStatus.search("storage") == "-1"){
+			alert("USB disk required in order to store the debug log, please plug-in a USB disk to <#Web_Title2#> and Enable DSL Line Diagnostic again.");
+			document.form.dslx_diag_enable[1].checked = true;
+			return;
+		}
+		else{
+			alert("While debug log capture in progress, please do not unplug the USB disk as the debug log would be stored in the disk. UI top right globe icon flashing in yellow indicating that debug log capture in progress. Click on the yellow globe icon could cancel the debug log capture. Please note that xDSL line would resync in one minute after Feedback form submitted.");
+		}
+		showhide("dslx_diag_duration",1);
+	}
+	else {
+		showhide("dslx_diag_duration",0);
+	}
 }
 
 </script>
@@ -112,7 +144,7 @@ function textCounter(field, cnt, upper) {
 <input type="hidden" name="current_page" value="Advanced_Feedback.asp">
 <input type="hidden" name="action_mode" value="apply">
 <input type="hidden" name="action_script" value="restart_DSLsendmail">
-<input type="hidden" name="action_wait" value="">
+<input type="hidden" name="action_wait" value="60">
 <input type="hidden" name="PM_attach_syslog" value="">
 <input type="hidden" name="PM_attach_cfgfile" value="">
 <input type="hidden" name="PM_attach_iptables" value="">	
@@ -176,9 +208,33 @@ function textCounter(field, cnt, upper) {
 </tr>
 
 <tr>
+	<th><a class="hintstyle" href="javascript:void(0);" onClick="openHint(25,11);">Enable DSL Line Diagnostic *</a></th>
+	<td>
+		<input type="radio" name="dslx_diag_enable" class="input" value="1" onclick="change_dsl_diag_enable(1);"><#checkbox_Yes#>
+		<input type="radio" name="dslx_diag_enable" class="input" value="0" onclick="change_dsl_diag_enable(0);" checked><#checkbox_No#>
+		<br>	
+		<span id="storage_ready" style="display:none;color:#FC0">* USB disk is ready.</span>
+		<span id="be_lack_storage" style="display:none;color:#FC0">* No USB disk plug-in.</span>
+	</td>
+</tr>
+
+<tr id="dslx_diag_duration">
+	<th>Diagnostic debug log capture duration *</th>
+	<td>
+		<select id="" class="input_option" name="dslx_diag_duration">
+			<option value="0" selected><#Auto#></option>
+			<option value="3600">1 <#Hour#></option>
+			<option value="18000">5 <#Hour#></option>
+			<option value="43200">12 <#Hour#></option>
+			<option value="86400">24 <#Hour#></option>
+		</select>
+	</td>
+</tr>
+
+<tr>
 <th><#feedback_connection_type#></th>
 <td>
-	<select id="" class="input_option" name="fb_availability">
+	<select class="input_option" name="fb_availability">
 		<option value="Not_selected"><#Select_menu_default#> ...</option>
 		<option value="Stable_connection"><#feedback_stable#></option>
 		<option value="Occasional_interruptions"><#feedback_Occasion_interrupt#></option>
@@ -193,7 +249,8 @@ function textCounter(field, cnt, upper) {
 	</th>
 	<td>
 		<textarea name="fb_comment" maxlength="2000" cols="55" rows="8" style="font-family:'Courier New', Courier, mono; font-size:13px;background:#475A5F;color:#FFFFFF;" onKeyDown="textCounter(this,document.form.msglength,2000);" onKeyUp="textCounter(this,document.form.msglength,2000)"></textarea>
-		<i>Maximum of 2000 characters - characters left : <input type="text" class="input_6_table" name="msglength" id="msglength" maxlength="4" value="2000" readonly></i>
+		<span style="color:#FC0">Maximum of 2000 characters - characters left : </span>
+		<input type="text" class="input_6_table" name="msglength" id="msglength" maxlength="4" value="2000" readonly>
 	</td>
 </tr>
 
@@ -208,9 +265,9 @@ function textCounter(field, cnt, upper) {
 	<td colspan="2">
 		<strong><#FW_note#></strong>
 		<ul>
-			<li>The Firmware and DSL Driver Version will be submitted in addition to any info you choose to include above.</li>
-			<li>DSL feedback will be used to diagnose problems and help to improve the firmware of <#Web_Title2#>, any personal information you submitted, whether explicitly or incidentally will be protected in accordance with our <a style='font-weight: bolder;text-decoration:underline;cursor:pointer;' href='http://www.asus.com/Terms_of_Use_Notice_Privacy_Policy/Privacy_Policy/' target='_blank'>privacy policy</a>.</li>
-			<li>By submitting this DSL Feedback, you agree that ASUS may use feedback that you provided to improve ASUS xDSL modem router product.</li>
+			<li><#feedback_note1#></li>
+			<li><#feedback_note2#></li>
+			<li><#feedback_note3#></li>
 		</ul>
 	</td>
 </tr>	

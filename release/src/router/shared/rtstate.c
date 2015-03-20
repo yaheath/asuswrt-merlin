@@ -225,8 +225,7 @@ int get_wanports_status(int wan_unit)
 	if(get_dualwan_by_unit(wan_unit) == WANS_DUALWAN_IF_DSL)
 #endif
 	{
-		/* Paul modify 2012/10/18, check both ADSL sync status, and WAN0 state. */
-		if (nvram_match("dsltmp_adslsyncsts","up") && nvram_match("wan0_state_t","2")) return 1;
+		if (nvram_match("dsltmp_adslsyncsts","up")) return 1;
 		return 0;
 	}
 #ifdef RTCONFIG_DUALWAN
@@ -242,7 +241,7 @@ int get_wanports_status(int wan_unit)
 	// TO CHENI:
 	// HOW TO HANDLE USB?	
 #else // RJ-45
-#ifdef RTCONFIG_RALINK
+#if defined(RTCONFIG_RALINK) || defined(RTCONFIG_QCA)
 	return rtkswitch_wanPort_phyStatus(wan_unit);
 #else
 	return wanport_status(wan_unit);
@@ -471,7 +470,17 @@ void add_wanscap_support(char *feature)
 int get_wans_dualwan(void) 
 {
 	int caps=0;
-	char *wancaps = nvram_safe_get("wans_dualwan");
+	char *wancaps = nvram_get("wans_dualwan");
+
+	if(wancaps == NULL)
+	{
+#ifdef RTCONFIG_DSL
+		caps =  WANSCAP_DSL;
+#else
+		caps = WANSCAP_WAN;
+#endif
+		wancaps = DEF_SECOND_WANIF;
+	}
 
 	if(strstr(wancaps, "lan")) caps |= WANSCAP_LAN;
 	if(strstr(wancaps, "2g")) caps |= WANSCAP_2G;
@@ -487,9 +496,23 @@ int get_dualwan_by_unit(int unit)
 {
 	int i;
 	char word[80], *next;
+	char *wans_dualwan = nvram_get("wans_dualwan");
+
+	if(wans_dualwan == NULL)	//default value
+	{
+		if(unit == 0)
+		{
+#ifdef RTCONFIG_DSL
+			return WANSCAP_DSL;
+#else
+			return WANS_DUALWAN_IF_WAN;
+#endif
+		}
+		wans_dualwan = DEF_SECOND_WANIF;
+	}
 
 	i = 0;
-	foreach(word, nvram_safe_get("wans_dualwan"), next) {
+	foreach(word, wans_dualwan, next) {
 		if(i==unit) {
 			if (!strcmp(word,"lan")) return WANS_DUALWAN_IF_LAN;
 			if (!strcmp(word,"2g")) return WANS_DUALWAN_IF_2G;

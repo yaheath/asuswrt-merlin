@@ -318,8 +318,8 @@ static struct sk_buff *osl_alloc_skb(unsigned int len)
 	skb = __dev_alloc_skb(len, flags);
 #ifdef CTFMAP
 	if (skb) {
-		skb->data = skb->head + 16;
-		skb->tail = skb->head + 16;
+		skb->data = skb->head + NET_SKB_PAD;
+		skb->tail = skb->data;
 	}
 #endif /* CTFMAP */
 	return skb;
@@ -527,8 +527,8 @@ osl_pktfastget(osl_t *osh, uint len)
 
 	/* Init skb struct */
 	skb->next = skb->prev = NULL;
-	skb->data = skb->head + 16;
-	skb->tail = skb->head + 16;
+	skb->data = skb->head + NET_SKB_PAD;
+	skb->tail = skb->data;
 
 	skb->len = 0;
 	skb->cloned = 0;
@@ -683,7 +683,11 @@ osl_pktfastfree(osl_t *osh, struct sk_buff *skb)
 #endif
 
 	ctfpool = (ctfpool_t *)CTFPOOLPTR(osh, skb);
+#if 0
 	ASSERT(ctfpool != NULL);
+#else
+	if (ctfpool == NULL) return;
+#endif
 
 	/* Add object to the ctfpool */
 	CTFPOOL_LOCK(ctfpool, flags);

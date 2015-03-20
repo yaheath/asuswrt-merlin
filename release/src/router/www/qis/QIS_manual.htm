@@ -8,13 +8,13 @@
 <script type="text/javascript" src="/qis/QISMobilePlugin.js"></script>
 <script type="text/JavaScript" src="/state.js"></script>
 <script type="text/JavaScript" src="/general.js"></script>
-<script type="text/JavaScript" src="/form.js"></script>
 <script type="text/JavaScript" src="/help.js"></script>
 <script language="JavaScript" type="text/javascript" src="/jquery.js"></script>
 <script type="text/JavaScript">
 var $j = jQuery.noConflict();
 
 function QKInternet_load_body(){
+	parent.isManual = true;
 	if(parent.ISMOBILE){
 		parent.set_step("admin_pass");
 		hideObjs();
@@ -25,26 +25,42 @@ function QKInternet_load_body(){
 		parent.set_step("t2");
 		setScenerion(parent.sw_mode);
 
-		if(!repeater_support)
+		if(!repeater_support){
 			$("repeaterMode").style.display = "none";
+			document.getElementById("sw_mode2_radio").disabled = true;
+		}
 
-		if(!psta_support)
+		if(!psta_support){
 			$("MBMode").style.display = "none";
+			document.getElementById("sw_mode4_radio").disabled = true;
+		}
 		
 		if(parent.hwmodeSwitch_support){
 			$("routerMode").style.display = "none";
+			document.getElementById("sw_mode1_radio").disabled = true;
 			$("repeaterMode").style.display = "none";
+			document.getElementById("sw_mode2_radio").disabled = true;
 			$("APMode").style.display = "none";
+			document.getElementById("sw_mode3_radio").disabled = true;
 			$("MBMode").style.display = "none";
+			document.getElementById("sw_mode4_radio").disabled = true;
 
-			if(parent.sw_mode == 2)
+			if(parent.sw_mode == 2){
 				$("repeaterMode").style.display = "";
-			else if(parent.sw_mode == 3)
+				document.getElementById("sw_mode2_radio").disabled = false;
+			}
+			else if(parent.sw_mode == 3){
 				$("APMode").style.display = "";
-			else if(parent.sw_mode == 4)
+				document.getElementById("sw_mode3_radio").disabled = false;
+			}
+			else if(parent.sw_mode == 4){
 				$("MBMode").style.display = "";
-			else
+				document.getElementById("sw_mode4_radio").disabled = false;
+			}
+			else{
 				$("routerMode").style.display = "";
+				document.getElementById("sw_mode1_radio").disabled = false;
+			}
 		}
 
 		document.getElementById("nextButton").focus();	
@@ -59,7 +75,7 @@ function setScenerion(mode){
 		parent.document.QKform.sw_mode.value = 2;
 		parent.localAP_support = true;
 		$j("#Senario").attr("src", "/images/New_ui/re.jpg");
-		$j("#Senario").attr("style", "height:");
+		$j("#Senario").attr("style", "height:auto");
 		$j("#mode_desc").html(pstaDesc);	
 		document.form.sw_mode_radio[1].focus();
 		document.form.sw_mode_radio[1].checked = true;
@@ -67,7 +83,7 @@ function setScenerion(mode){
 	else if(mode == '3'){
 		parent.document.QKform.sw_mode.value = 3;
 		$j("#Senario").attr("src", "/images/New_ui/ap.jpg");
-		$j("#Senario").attr("style", "height:");
+		$j("#Senario").attr("style", "height:auto");
 		$j("#mode_desc").html("<#OP_AP_desc#><br><span style=\"color:#FC0\"><#deviceDiscorvy3#></span>");		
 		document.form.sw_mode_radio[2].focus();
 		document.form.sw_mode_radio[2].checked = true;
@@ -93,10 +109,14 @@ function setScenerion(mode){
 	else{
 		parent.document.QKform.sw_mode.value = 1;
 		$j("#Senario").attr("src", "/images/New_ui/rt.jpg");
-		$j("#Senario").attr("style", "height:");
+		$j("#Senario").attr("style", "height:auto");
 		$j("#mode_desc").html("<#OP_GW_desc#>");
 		document.form.sw_mode_radio[0].focus();
 		document.form.sw_mode_radio[0].checked = true;
+	}
+	
+	if(downsize_8m_support){
+		document.getElementById("Senario").style.height = "0";
 	}
 }
 
@@ -115,7 +135,7 @@ function submitForm(){
 		document.form.submit();
 	}
 	else{
-		document.form.action = "/qis/QIS_detect.htm";
+		document.form.action = "/qis/QIS_internet_type.htm";
 		document.form.submit();
 	}
 }
@@ -161,20 +181,20 @@ function submitenter(myfield,e){
 <div style="width:95%; margin:0 auto; padding-bottom:3px;" id="field_general">
 	<span style="font-size:16px; font-weight:bold;color:white;text-shadow: 1px 1px 0px black">
 		<span id="routerMode">
-			<input type="radio" name="sw_mode_radio" class="input" value="1" tabindex="1" onclick="setScenerion(1);" <% nvram_match("sw_mode", "1", "checked"); %>><#OP_GW_item#>
+			<input type="radio" id="sw_mode1_radio" name="sw_mode_radio" class="input" value="1" tabindex="1" onclick="setScenerion(1);" <% nvram_match("sw_mode", "1", "checked"); %>><label for="sw_mode1_radio"><#OP_GW_item#></label>
 		</span>
 			&nbsp;&nbsp;
 		<span id="repeaterMode">
-			<input type="radio" name="sw_mode_radio" class="input" value="2" tabindex="2" onclick="setScenerion(2);" <% nvram_match("sw_mode", "2", "checked"); %>>
-			<span id="repeaterMode_desc"><#OP_RE_item#></span>
+			<input type="radio" id="sw_mode2_radio" name="sw_mode_radio" class="input" value="2" tabindex="2" onclick="setScenerion(2);" <% nvram_match("sw_mode", "2", "checked"); %>>
+			<span id="repeaterMode_desc"><label for="sw_mode2_radio"><#OP_RE_item#></label></span>
 		</span>
 		&nbsp;&nbsp;
 		<span id="APMode">
-			<input type="radio" name="sw_mode_radio" class="input" value="3" tabindex="3" onclick="setScenerion(3);" <% nvram_match("sw_mode", "3", "checked"); %>><#OP_AP_item#>
+			<input type="radio" id="sw_mode3_radio" name="sw_mode_radio" class="input" value="3" tabindex="3" onclick="setScenerion(3);" <% nvram_match("sw_mode", "3", "checked"); %>><label for="sw_mode3_radio"><#OP_AP_item#></label>
 		</span>
 		&nbsp;&nbsp;
 		<span id="MBMode">
-			<input type="radio" name="sw_mode_radio" class="input" value="4" tabindex="4" onclick="setScenerion(4);" <% nvram_match("sw_mode", "4", "checked"); %>>Media bridge
+			<input type="radio" id="sw_mode4_radio" name="sw_mode_radio" class="input" value="4" tabindex="4" onclick="setScenerion(4);" <% nvram_match("sw_mode", "4", "checked"); %>><label for="sw_mode4_radio">Media bridge</label>
 		</span>
 	</span>
 
