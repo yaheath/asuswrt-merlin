@@ -1,4 +1,4 @@
-Asuswrt-Merlin - build 378.52 (xx-xxx-2015)
+Asuswrt-Merlin - build 380.57 (24-Dec-2015)
 ===========================================
 
 About
@@ -36,6 +36,9 @@ Supported devices are:
  * RT-AC68P
  * RT-AC87U
  * RT-AC3200
+ * RT-AC88U
+ * RT-AC3100
+ * RT-AC5300
 
 Devices that are no longer officially supported (but forked builds might
 exist from other developers):
@@ -54,7 +57,7 @@ Here is a list of features that Asuswrt-merlin adds over the original
 firmware:
 
 System:
-   - Based on 3.0.0.4.378_4585 source code from Asus
+   - Based on 3.0.0.4.380_1031 source code from Asus
    - Various bugfixes and optimizations
    - Some components were updated to newer versions, for improved
      stability and security
@@ -81,16 +84,19 @@ Networking:
    - Act as a WINS server
    - Allows tweaking TCP/UDP connection tracking timeouts
    - CIFS client support (for mounting remote SMB share on the router)
-   - Layer7 iptables matching (N16/N66/AC66 only)
+   - Layer7 iptables matching (N66/AC66 only)
    - User-defined options for WAN DHCP queries (required by some ISPs)
-   - Advanced OpenVPN client and server support (all models except 
-     RT-N16)
+   - Advanced OpenVPN client and server support
    - Netfilter ipset module, for efficient blacklist implementation
    - Configurable min/max UPNP ports
-   - IPSec kernel support (N16/N66/AC66 only)
+   - IPSec kernel support (N66/AC66 only)
    - DNS-based Filtering, can be applied globally or per client
    - Custom DDNS (through a user script)
    - Advanced NAT loopback (as an alternative to the default one)
+   - TOR support, individual client control
+   - Policy routing for the OpenVPN client (based on source or
+     destination IPs), sometimes referred to as "selective routing")
+   - DNSSEC support
 
 
 Web interface:
@@ -103,6 +109,9 @@ Web interface:
    - Display the Ethernet port states
    - Wireless site survey
    - Advanced Wireless client list display, including automated refresh
+   - Redesigned layout of the various System Log sections
+   - Editable fields for some pages
+
 
 A few features that first appeared in Asuswrt-Merlin have since been 
 integrated/enabled/re-implemented in the official firmware:
@@ -164,9 +173,6 @@ to have a USB disk plugged in.  This space will survive reboots (but it
 flashing!).  It will also be available fairly early at boot (before 
 USB disks).
 
-The option is enabled by default.  You can however disable it, or 
-reformat it from the Administration -> System page.
-
 On that page you will also find an option called "Enable custom 
 scripts and configs".  If you intend to use custom scripts or 
 config files, then you need to enable this option.  This is not 
@@ -181,6 +187,8 @@ rarely get written to.  Storing files that constantly get written
 to (like very busy logfiles) is NOT recommended - use a 
 USB disk for that.
 
+You can backup and restore the content of the JFFS2 partition, 
+from the same page you can backup/restore the router configuration.
 
 
 ** User scripts **
@@ -212,7 +220,7 @@ Available scripts:
                   started/stopped, or an OpenVPN client connects to a
                   remote server.  Uses the same syntax/parameters as
                   the "up" and "down" scripts in OpenVPN.
- * post-mount:  Just after a partition is mounted
+ * post-mount: Just after a partition is mounted
  * pre-mount: Just before a partition is mounted.  Be careful with 
               this script.  This is run in a blocking call and will 
               block the mounting of the partition  for which it is 
@@ -398,6 +406,7 @@ The list of available config overrides:
         through init-start first if it doesn't exist!)
  * group, gshadow, passwd, shadow (only .add versions supported)
  * hosts (for /etc/hosts)
+ * igmpproxy.conf
  * minidlna.conf
  * mt-daap.service
  * pptpd.conf
@@ -405,6 +414,7 @@ The list of available config overrides:
  * radvd.conf
  * smb.conf
  * snmpd.conf
+ * torrc (for the Tor config file)
  * vsftpd.conf
  * upnp (for miniupnpd)
 
@@ -448,9 +458,10 @@ The list of available postconf scripts is:
  * group.postconf
  * gshadow.postconf
  * hosts.postconf
+ * igmpproxy.postconf
  * minidlna.postconf
  * mt-daap.postconf
- * openvpnclient1.postconf (and openvpnclient2.postconf)
+ * openvpnclient1.postconf (up to openvpnclient5.postconf)
  * openvpnserver1.postconf (and openvpnserver2.postconf)
  * passwd.postconf
  * pptpd.postconf
@@ -458,6 +469,7 @@ The list of available postconf scripts is:
  * shadow.postconf
  * smb.postconf
  * snmpd.postconf
+ * torrc.postconf
  * upnp.postconf
  * vsftpd.postconf
 
@@ -543,9 +555,6 @@ Access your router through SSH/Telnet, and run
 Note that Entware requires the JFFS partition to be enabled, and an 
 ext2/ext3/ext4 formatted USB disk (NTFS, HFS+ and FAT32 are not supported).
 
-Since 378.51 Entware also has a ARM-based repository, for 
-AC56/AC68/AC87/AC3200 routers, provided by Zyxmon.
-
 
 
 ** DNSFilter **
@@ -580,7 +589,7 @@ the default filter to "None", and only filter out specific devices.
 
 ** Layer7-based Netfilter module **
 Support for layer7 rules in iptables has been enabled on MIPS-based
-routers (RT-N16/N66/AC66).  You will need to manually configure the 
+routers (RT-N66/AC66).  You will need to manually configure the 
 iptables rules to make use of it - there is no web interface exposing 
 this.  The defined protocols can be found in /etc/l7-protocols.
 
@@ -638,6 +647,46 @@ the URL to use your private API key from afraid.org):
 
 Finally, like all custom scripts, the option to support custom scripts and 
 config files must be enabled under Administration -> System.
+
+
+
+OpenVPN client policy routing
+-----------------------------
+When configuring your router to act as an OpenVPN client (for instance 
+to connect your whole LAN to an OpenVPN tunnel provider), you can 
+define policies that determines which clients, or which destinations 
+should be routed through the tunnel, rather than having all of your
+traffic automatically routed through it.
+
+On the OpenVPN Clients page, set "Redirect Internet traffic" to 
+"Policy Rules".  A new section will appear below, where you can 
+add routing rules.  The "Source IP" is your local client, while 
+"Destination" is the remote server on the Internet.  The field can be 
+left empty (or set to 0.0.0.0) to signify "any IP".  You can also 
+specify a whole subnet, in CIDR notation (for example, 74.125.226.112/30).
+
+The Iface field lets you determine if matching traffic should be sent 
+through the VPN tunnel or through your regular Internet access (WAN).
+This allows you to define exceptions (WAN rules being processed 
+before the VPN rules).
+
+Here are a few examples.
+
+To have all your clients use the VPN tunnel when trying to 
+access an IP from this block that belongs to Google:
+
+	RouteGoogle	0.0.0.0		74.125.0.0/16	VPN
+
+Or, to have a computer routed through the tunnel except for requests sent
+to your ISP's SMTP server (assuming a fictious IP of 10.10.10.10 for your 
+ISP's SMTP server):
+
+	PC1		192.168.1.100	0.0.0.0		VPN
+	PC1-bypass	192.168.1.100	10.10.10.10	WAN
+
+Another setting exposed when enabling Policy routing is to prevent your 
+routed clients from accessing the Internet if the VPN tunnel goes down.  
+To do so, enable "Block routed clients if tunnel goes down".
 
 
 

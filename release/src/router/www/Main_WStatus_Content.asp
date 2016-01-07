@@ -15,7 +15,7 @@
 <script language="JavaScript" type="text/javascript" src="/general.js"></script>
 <script language="JavaScript" type="text/javascript" src="/popup.js"></script>
 <script language="JavaScript" type="text/javascript" src="/help.js"></script>
-<script language="JavaScript" type="text/javascript" src="/jquery.js"></script>
+<script language="JavaScript" type="text/javascript" src="/js/jquery.js"></script>
 <script language="JavaScript" type="text/javascript" src="/jquery.xdomainajax.js"></script>
 <script language="JavaScript" type="text/javascript" src="/client_function.js"></script>
 <style>
@@ -29,16 +29,18 @@ p{
 </style>
 
 <script>
-var $j = jQuery.noConflict();
 overlib_str_tmp = "";
 overlib.isOut = true;
 
 var refreshRate = 3;
+var timedEvent = 0;
 
 <% get_wl_status(); %>;
 
+
 function initial(){
 	show_menu();
+	refreshRate = getRefresh();
 	get_wlclient_list();
 }
 
@@ -80,9 +82,9 @@ function redraw(){
 function display_clients(clientsarray, obj) {
 	var code, i, client, overlib_str;
 
-	code = '<table width="100%" id="24G" border="1" align="center" cellpadding="4" cellspacing="0" bordercolor="#6b8fa3" class="FormTable">';
+	code = '<table width="100%" border="1" align="center" cellpadding="4" cellspacing="0" bordercolor="#6b8fa3" class="FormTable">';
 	code += '<thead><tr>';
-	code += '<td width=15%">MAC</td>';
+	code += '<td width="15%">MAC</td>';
 	code += '<td width="16%">IP</td>';
 	code += '<td width="16%">Name</td><td width="10%">RSSI</td><td width="18%">Rx / Tx Rate</td><td width="12%">Connected</td>';
 	code += '<td width="8%">Flags</td>';
@@ -115,7 +117,7 @@ function display_clients(clientsarray, obj) {
 
 
 function display_header(dataarray, title, obj) {
-var code;
+	var code;
 
 	code = '<table width="100%" style="border: none;">';
 	code += '<thead><tr><span class="wifiheader" style="font-size: 125%;">' + title +'</span></tr></thead>';
@@ -128,23 +130,47 @@ var code;
 }
 
 
-function get_wlclient_list(){
-	if (refreshRate == 0) {
-		setTimeout("get_wlclient_list();", 2000);
-	} else {
-		$j.ajax({
-			url: '/ajax_wificlients.asp',
-			dataType: 'script', 
-			error: function(xhr){
-					get_wlclient_list();
-				},
-			success: function(response){
-				redraw();
-				setTimeout("get_wlclient_list();", refreshRate * 1000);
-			}
-		});
+function get_wlclient_list() {
+
+	if (timedEvent) {
+		clearTimeout(timedEvent);
+		timedEvent = 0;
 	}
+
+	$.ajax({
+		url: '/ajax_wificlients.asp',
+		dataType: 'script', 
+		error: function(xhr){
+				get_wlclient_list();
+				},
+		success: function(response){
+			redraw();
+			if (refreshRate > 0)
+				timedEvent = setTimeout("get_wlclient_list();", refreshRate * 1000);
+		}
+	});
+
 }
+
+
+function getRefresh() {
+	val  = parseInt(cookie.get('awrtm_wlrefresh'));
+
+	if ((val != 0) && (val != 1) && (val != 3) && (val != 5) && (val != 10))
+		val = 3;
+
+	document.getElementById('refreshrate').value = val;
+
+	return val;
+}
+
+
+function setRefresh(obj) {
+	refreshRate = obj.value;
+	cookie.set('awrtm_wlrefresh', refreshRate, 300);
+	get_wlclient_list();
+}
+
 
 </script>
 </head>
@@ -188,7 +214,7 @@ function get_wlclient_list(){
 										<tr>
 											<th>Automatically refresh list every</th>
 											<td>
-												<select name="refreshrate" class="input_option" onclick="refreshRate = this.value;">
+												<select name="refreshrate" class="input_option" onchange="setRefresh(this);" id="refreshrate">
 													<option value="0">No refresh</option>
 													<option value="1">1 second</option>
 													<option value="3" selected>3 seconds</option>

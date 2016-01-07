@@ -530,7 +530,7 @@ body {
 	line-height:19px;
 	height:19px;
 	margin-left:5px;
-	margin-right:15px;
+	margin-right:5px;
 	text-decoration: underline;
 	font-family:Lucida Console;
 	font-weight: bolder;
@@ -700,7 +700,11 @@ width:122px;
   background: url(images/New_ui/icon_indexes.png);
   background-position: -0px -128px; width: 43px; height: 43px;
 }
-._TrafficAnalyzer_Statistic, ._QoS_EZQoS{
+._GameBoost{
+  background: url(images/New_ui/game.png);
+  background-position: 0px 0px; width: 43px; height: 43px;
+}
+._TrafficAnalyzer_Statistic, ._QoS_EZQoS, ._Main_TrafficMonitor_realtime{
   background: url(images/New_ui/icon_indexes.png);
   background-position: -0px -172px; width: 43px; height: 43px;
 }
@@ -837,6 +841,24 @@ width:122px;
 	border-style:inset;
 }
 
+.block_filter_name_table{
+	text-align:center;
+	color:#CCCCCC;
+	font-size:14px;
+	width: 100%;
+	height: 100%;
+} 
+.block_filter_name_table:hover{
+	color:#FFFFFF;
+}
+.block_filter_name_table_pressed{
+	text-align:center;
+	color:#93A9B1;
+	font-size:14px;
+	width:100%;
+	height:100%;
+} 
+
 .usb_count_circle {
 	position: absolute;
 	width: 30px;
@@ -849,4 +871,3 @@ width:122px;
 	text-align: center;
 	box-shadow: 1px 2px 2px #000;
 }
-

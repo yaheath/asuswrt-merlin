@@ -24,7 +24,7 @@ p{
 <script language="JavaScript" type="text/javascript" src="/tmhist.js"></script>
 <script language="JavaScript" type="text/javascript" src="/tmmenu.js"></script>
 <script language="JavaScript" type="text/javascript" src="/client_function.js"></script>
-<script language="JavaScript" type="text/javascript" src="/jquery.js"></script>
+<script language="JavaScript" type="text/javascript" src="/js/jquery.js"></script>
 <script language="JavaScript" type="text/javascript" src="/jquery.xdomainajax.js"></script>
 <script>
 
@@ -34,8 +34,6 @@ arplist = [<% get_arp_table(); %>];
 etherstate = "<% sysinfo("ethernet"); %>";
 odmpid = "<% nvram_get("odmpid");%>";
 ctf_fa = "<% nvram_get("ctf_fa_mode"); %>";
-
-var $j = jQuery.noConflict();
 
 overlib_str_tmp = "";
 overlib.isOut = true;
@@ -64,9 +62,9 @@ function initial(){
 	var firmver = '<% nvram_get("firmver"); %>'
 	var extendno = '<% nvram_get("extendno"); %>';
 	if ((extendno == "") || (extendno == "0"))
-		document.getElementById("fwver").innerHTML = firmver + "." + buildno;
+		document.getElementById("fwver").innerHTML = buildno;
 	else
-		document.getElementById("fwver").innerHTML =  firmver + "." + buildno + '_' + extendno.split("-g")[0];
+		document.getElementById("fwver").innerHTML = buildno + '_' + extendno;
 
 	update_temperatures();
 	hwaccel_state();
@@ -75,7 +73,7 @@ function initial(){
 }
 
 function update_temperatures(){
-	$j.ajax({
+	$.ajax({
 		url: '/ajax_coretmp.asp',
 		dataType: 'script',
 		error: function(xhr){
@@ -86,7 +84,11 @@ function update_temperatures(){
 			if (band5g_support) {
 				code += "&nbsp;&nbsp;-&nbsp;&nbsp;<b>5 GHz:</b> <span>" + curr_coreTmp_5_raw + "</span>";
 			}
-			if ((based_modelid == "RT-N18U") || (based_modelid == "RT-AC56U") || (based_modelid == "RT-AC56S") || (based_modelid == "RT-AC68U") || (based_modelid == "RT-AC87U") || (based_modelid == "RT-AC68U") || (based_modelid == "RT-AC3200")) {
+			if ((based_modelid == "RT-N18U") || (based_modelid == "RT-AC56U") ||
+			    (based_modelid == "RT-AC56S") || (based_modelid == "RT-AC68U") ||
+			    (based_modelid == "RT-AC87U") || (based_modelid == "RT-AC68U") ||
+			    (based_modelid == "RT-AC3200") || (based_modelid == "RT-AC88U") ||
+			    (based_modelid == "RT-AC5300") || (based_modelid == "RT-AC3100")) {
 				code +="&nbsp;&nbsp;-&nbsp;&nbsp;<b>CPU:</b> <span>" + curr_coreTmp_cpu +"&deg;C</span>";
 			}
 			document.getElementById("temp_td").innerHTML = code;
@@ -149,15 +151,40 @@ function show_etherstate(){
 	var state, state2;
 	var hostname, devicename, devicemac, overlib_str, port;
 	var tmpPort;
-	var code = '<table cellpadding="0" cellspacing="0" width="100%"><tr><th style="width:15%;">Port</th><th style="width:15%;">VLAN</th><th style="width:25%;">Link State</th>';
-	code += '<th style="width:45%;">Last Device Seen</th></tr>';
+	var line;
+
+	if (based_modelid == "RT-AC88U")
+		coldisplay = "display:none;";
+	else {
+		coldisplay = "";
+		genClientList();
+	}
+
+	var code = '<table cellpadding="0" cellspacing="0" width="100%"><tr><th style="width:15%;">Port</th><th style="width:15%;' + coldisplay + '">VLAN</th><th style="width:25%;">Link State</th>';
+	code += '<th style="width:45%;' + coldisplay + '">Last Device Seen</th></tr>';
 
 	var code_ports = "";
 	var entry;
 
+	if (based_modelid == "RT-AC88U")
+	{
+		var rtkswitch = <% sysinfo("ethernet.rtk"); %>;
+
+		for (var i = rtkswitch.length - 1; i >= 0; --i) {
+			line = rtkswitch[i];
+			if (line[1] == "0")
+				state = "Down"
+			else
+				state = line[1] + " Mbps";
+
+			code += '<tr><td>LAN ' + line[0] + ' (RTL)</td><td style="' + coldisplay +'">' + '<span class="ClientName">&lt;unknown&gt;</span>' + '</td><td><span>' + state + '</span></td><td style="' + coldisplay +'">'+ '<span class="ClientName">&lt;unknown&gt;</span>' +'</td></tr>';
+		}
+
+	}
+
 	var t = etherstate.split('>');
 	for (var i = 0; i < t.length; ++i) {
-		var line = t[i].split(/[\s]+/);
+		line = t[i].split(/[\s]+/);
 		if (line[11])
 			devicemac = line[11].toUpperCase();
 		else
@@ -179,7 +206,7 @@ function show_etherstate(){
 				overlib_str = "<p><#MAC_Address#>:</p>" + devicemac;
 
 				if (clientList[devicemac])
-					hostname = clientList[devicemac].name;
+					hostname = (clientList[devicemac].nickName == "") ? clientList[devicemac].hostname : clientList[devicemac].nickName;
 
 				if ((hostname != "") && (typeof hostname !== 'undefined')) {
 					devicename = '<span class="ClientName" onclick="oui_query(\'' + devicemac +'\');;overlib_str_tmp=\''+ overlib_str +'\';return overlib(\''+ overlib_str +'\');" onmouseout="nd();" style="cursor:pointer; text-decoration:underline;">'+ hostname +'</span>';
@@ -191,7 +218,7 @@ function show_etherstate(){
 
 			if (tmpPort == "8") {		// CPU Port
 				continue;
-			} else if ((based_modelid == "RT-AC56U") || (based_modelid == "RT-AC56S")) {
+			} else if ((based_modelid == "RT-AC56U") || (based_modelid == "RT-AC56S") || (based_modelid == "RT-AC88U") || (based_modelid == "RT-AC3100")) {
 				tmpPort++;		// Port starts at 0
 				if (tmpPort == "5") tmpPort = 0;	// Last port is WAN
 			} else if (based_modelid == "RT-AC87U") {
@@ -205,11 +232,14 @@ function show_etherstate(){
 			if (tmpPort == "0") {
 				port = "WAN";
 			} else {
-				if ((based_modelid == "RT-N16") || (based_modelid == "RT-AC87U"))  tmpPort = 5 - tmpPort;
+				if ((based_modelid == "RT-N16") || (based_modelid == "RT-AC87U")
+				    || (based_modelid == "RT-AC3200") || (based_modelid == "RT-AC88U") 
+				    || (based_modelid == "RT-AC3100"))  tmpPort = 5 - tmpPort;
+
 				port = "LAN "+tmpPort;
 			}
-			entry = '<tr><td>' + port + '</td><td>' + (line[7] & 0xFFF) + '</td><td><span>' + state2 + '</span></td>';
-			entry += '<td>'+ devicename +'</td></tr>';
+			entry = '<tr><td>' + port + '</td><td style="' + coldisplay +'">' + (line[7] & 0xFFF) + '</td><td><span>' + state2 + '</span></td>';
+			entry += '<td style="' + coldisplay +'">'+ devicename +'</td></tr>';
 
 			if (based_modelid == "RT-N16")
 				code_ports = entry + code_ports;
@@ -222,7 +252,7 @@ function show_etherstate(){
 }
 
 function updateClientList(e){
-	$j.ajax({
+	$.ajax({
 		url: '/update_clients.asp',
 		dataType: 'script', 
 		error: function(xhr) {
@@ -376,6 +406,11 @@ function updateClientList(e){
  					<tr>
 						<th>Buffers</th>
 						<td> <% sysinfo("memory.buffer"); %>&nbsp;MB</td>
+					</tr>
+
+					<tr>
+						<th>Cache</th>
+						<td> <% sysinfo("memory.cache"); %>&nbsp;MB</td>
 					</tr>
 
 					<tr>

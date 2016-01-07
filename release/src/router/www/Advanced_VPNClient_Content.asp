@@ -8,14 +8,14 @@
 <meta HTTP-EQUIV="Expires" CONTENT="-1">
 <link rel="shortcut icon" href="images/favicon.png">
 <link rel="icon" href="images/favicon.png">
-<title><#Web_Title#> - VPN Client Settings</title>
+<title><#Web_Title#> - <#vpnc_title#></title>
 <link rel="stylesheet" type="text/css" href="index_style.css"> 
 <link rel="stylesheet" type="text/css" href="form_style.css">
 <link rel="stylesheet" type="text/css" href="usp_style.css">
 <script type="text/javascript" src="/state.js"></script>
 <script type="text/javascript" src="/popup.js"></script>
 <script type="text/javascript" src="/help.js"></script>
-<script type="text/javascript" src="/jquery.js"></script>
+<script type="text/javascript" src="/js/jquery.js"></script>
 <script type="text/javascript" src="/general.js"></script>
 <script type="text/javascript" src="/validator.js"></script>
 <script type="text/javascript" src="/switcherplugin/jquery.iphone-switch.js"></script>
@@ -29,7 +29,7 @@
 	background-color:#2B373B;
 	display:none;
 	margin-left: 30%;
-	margin-top: 10px;
+	top: 290px;
 	width:650px;
 }
 .contentM_qis_manual{
@@ -79,7 +79,7 @@
 }
 </style>
 <script>
-var $j = jQuery.noConflict();
+
 
 var vpnc_clientlist = decodeURIComponent('<% nvram_char_to_ascii("","vpnc_clientlist"); %>');
 var vpnc_clientlist_array_ori = '<% nvram_char_to_ascii("","vpnc_clientlist"); %>';
@@ -100,26 +100,27 @@ function Add_profile(){
 	document.form.vpnc_account_edit.value = "";
 	document.form.vpnc_pwd_edit.value = "";
 	document.form.selPPTPOption.value = "auto";
+	document.getElementById("pptpOptionHint").style.display = "none";
 	tabclickhandler(0);
-	$("cancelBtn").style.display = "";
+	document.getElementById("cancelBtn").style.display = "";
 	document.getElementById("pptpcTitle").style.display = "";
 	document.getElementById("l2tpcTitle").style.display = "";
 
-        $j("#vpnc_settings").fadeIn(300);
+        $("#vpnc_settings").fadeIn(300);
 }
 
 function cancel_add_rule(){
 	restart_vpncall_flag = 0;
 	idx_tmp = "";
-	$j("#vpnc_settings").fadeOut(300);
+	$("#vpnc_settings").fadeOut(300);
 }
 
 function addRow_Group(upper, flag, idx){
 	idx = parseInt(idx);
 	if(idx >= 0){		//idx: edit row		
 		var table_id = "vpnc_clientlist_table";
-		var rule_num = $(table_id).rows.length;
-		var item_num = $(table_id).rows[0].cells.length;
+		var rule_num = document.getElementById(table_id).rows.length;
+		var item_num = document.getElementById(table_id).rows[0].cells.length;
 		if(flag == 'PPTP' || flag == 'L2TP'){
 			description_obj = document.form.vpnc_des_edit;
 			type_obj = document.form.vpnc_type;
@@ -469,7 +470,7 @@ function show_vpnc_rulelist(){
 				else if(vpnc_state_t == 2) // Connected
 						code +='<td width="10%"><img title="<#Connected#>" src="/images/checked_parentctrl.png" style="width:25px;"></td>';
 					else if(vpnc_state_t == 4 && vpnc_sbstate_t == 2)
-						code +='<td width="10%"><img title="<#qis_fail_desc1#>" src="/images/button-close2.png" style="width:25px;"></td>';
+						code +="<td width=\"10%\"><img title=\"<#qis_fail_desc1#>\" src=\"/images/button-close2.png\" style=\"width:25px;\"></td>";
 				else // Stop connection
 						code +='<td width="10%"><img title="<#ConnectionFailed#>" src="/images/button-close2.png" style="width:25px;"></td>';
 			}
@@ -507,7 +508,7 @@ function show_vpnc_rulelist(){
 	}
 
  	code +='</table>';
-	$("vpnc_clientlist_Block").innerHTML = code;		
+	document.getElementById("vpnc_clientlist_Block").innerHTML = code;		
 }
 
 
@@ -586,7 +587,7 @@ function connect_Row(rowdata, flag){
 
 var idx_tmp = "";
 function Edit_Row(rowdata, flag){
-	$("cancelBtn").style.display = "";
+	document.getElementById("cancelBtn").style.display = "";
 	idx_tmp = rowdata.parentNode.parentNode.rowIndex; //update idx
 	var idx = rowdata.parentNode.parentNode.rowIndex;
 	if(document.getElementById("vpnc_clientlist_table").rows[idx].cells[0].innerHTML != "-")
@@ -614,8 +615,9 @@ function Edit_Row(rowdata, flag){
 	else{	//default is auto
 		pptpOptionValue = "auto";
 	}
-	
+
 	document.form.selPPTPOption.value = pptpOptionValue;
+	pptpOptionChange();
 	for(var j=0; j<vpnc_clientlist_col.length; j++){
 		if(j == 0){
 			document.form.vpnc_des_edit.value = vpnc_clientlist_col[0];
@@ -639,7 +641,7 @@ function Edit_Row(rowdata, flag){
 		} 
 	}
 
-	$j("#vpnc_settings").fadeIn(300);
+	$("#vpnc_settings").fadeIn(300);
 	if(vpnc_clientlist_col[1] == "PPTP"){
 		document.getElementById("pptpcTitle").style.display = "";
 		document.getElementById("l2tpcTitle").style.display = "none";
@@ -653,7 +655,7 @@ function Edit_Row(rowdata, flag){
 
 function del_Row(rowdata, flag){
 	var idx = rowdata.parentNode.parentNode.rowIndex;
-	$("vpnc_clientlist_table").deleteRow(idx);
+	document.getElementById("vpnc_clientlist_table").deleteRow(idx);
 	var vpnc_clientlist_value = "";
 	var vpnc_clientlist_row = vpnc_clientlist_array.split('<');	
 	var vpnc_clientlist_col_delete = vpnc_clientlist_row[idx].split('>');
@@ -700,6 +702,13 @@ function del_Row(rowdata, flag){
 
 	document.form.vpnc_clientlist.value = vpnc_clientlist_array;
 	document.form.submit();
+}
+
+function pptpOptionChange() {
+	document.getElementById("pptpOptionHint").style.display = "none";
+	if(document.form.selPPTPOption.value == "+mppe-40") {
+		document.getElementById("pptpOptionHint").style.display = "";
+	}
 }
 
 </script>
@@ -750,39 +759,42 @@ function del_Row(rowdata, flag){
 					<tr>
 						<th><#IPConnection_autofwDesc_itemname#></th>
 						<td>
-						  	<input type="text" maxlength="64" name="vpnc_des_edit" value="" class="input_32_table" style="float:left;"></input>
+						  	<input type="text" maxlength="64" name="vpnc_des_edit" value="" class="input_32_table" style="float:left;" autocorrect="off" autocapitalize="off"></input>
 						</td>
 					</tr>
 
 					<tr>
 						<th><#BOP_isp_heart_item#></th>
 						<td>
-							<input type="text" maxlength="64" name="vpnc_svr_edit" value="" class="input_32_table" style="float:left;"></input>
+							<input type="text" maxlength="64" name="vpnc_svr_edit" value="" class="input_32_table" style="float:left;" autocorrect="off" autocapitalize="off"></input>
 						</td>
 					</tr>
 
 					<tr>
-						<th><#PPPConnection_UserName_itemname#></th>
+						<th><#HSDPAConfig_Username_itemname#></th>
 						<td>
-							<input type="text" maxlength="64" name="vpnc_account_edit" value="" class="input_32_table" style="float:left;" autocapitalization="off" autocomplete="off"></input>
+							<input type="text" maxlength="64" name="vpnc_account_edit" value="" class="input_32_table" style="float:left;" autocomplete="off" autocorrect="off" autocapitalize="off"></input>
 						</td>
 					</tr>
 
 					<tr>
-						<th><#PPPConnection_Password_itemname#></th>
+						<th><#HSDPAConfig_Password_itemname#></th>
 						<td>
-							<input type="text" maxlength="64" name="vpnc_pwd_edit" value="" class="input_32_table" style="float:left;" autocapitalization="off" autocomplete="off"></input>
+							<input type="text" maxlength="64" name="vpnc_pwd_edit" value="" class="input_32_table" style="float:left;" autocomplete="off" autocorrect="off" autocapitalize="off"></input>
 						</td>
 					</tr>
 					<tr id="trPPTPOptions">
-						<th><a class="hintstyle" href="javascript:void(0);" onClick="openHint(7,17);"><#PPPConnection_x_PPTPOptions_itemname#></a></th>
+						<th><#PPPConnection_x_PPTPOptions_itemname#></th>
 						<td>
-							<select name="selPPTPOption" class="input_option">
+							<select name="selPPTPOption" class="input_option" onchange="pptpOptionChange();">
 								<option value="auto"><#Auto#></option>
 								<option value="-mppc"><#No_Encryp#></option>
 								<option value="+mppe-40">MPPE 40</option>
 								<option value="+mppe-128">MPPE 128</option>
 							</select>
+							<div id="pptpOptionHint" style="display:none;">
+								<span><#PPTPOptions_OpenVPN_hint#><!--untranslated--></span>
+							</div>
 						</td>	
 					</tr>
 					</table>
@@ -817,7 +829,7 @@ function del_Row(rowdata, flag){
 					<tr>
 						<td bgcolor="#4D595D" valign="top">
 							<div>&nbsp;</div>
-							<div class="formfonttitle">VPN - VPN Client</div>
+							<div class="formfonttitle">VPN - <#vpnc_title#></div>
 							<div style="margin-left:5px;margin-top:10px;margin-bottom:10px"><img src="/images/New_ui/export/line_export.png"></div>
 							<div class="formfontdesc">
 								<#vpnc_desc1#><br>
@@ -854,7 +866,7 @@ function del_Row(rowdata, flag){
 							</table>          					
 							<div id="vpnc_clientlist_Block"></div>
 							<div class="apply_gen">
-								<input class="button_gen" onclick="Add_profile()" type="button" value="Add profile">
+								<input class="button_gen_long" onclick="Add_profile()" type="button" value="<#vpnc_step1#>">
 							</div>
            				</td>
          			</tr>        			

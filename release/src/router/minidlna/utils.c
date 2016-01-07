@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/sysinfo.h>
 #include <limits.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -194,14 +195,16 @@ unescape_tag(const char *tag, int force_alloc)
 {
 	char *esc_tag = NULL;
 
-	if( strstr(tag, "&amp;") || strstr(tag, "&lt;") || strstr(tag, "&gt;")
-			|| strstr(tag, "&quot;") )
+	if (strchr(tag, '&') &&
+	    (strstr(tag, "&amp;") || strstr(tag, "&lt;") || strstr(tag, "&gt;") ||
+	     strstr(tag, "&quot;") || strstr(tag, "&apos;")))
 	{
 		esc_tag = strdup(tag);
 		esc_tag = modifyString(esc_tag, "&amp;", "&", 1);
 		esc_tag = modifyString(esc_tag, "&lt;", "<", 1);
 		esc_tag = modifyString(esc_tag, "&gt;", ">", 1);
 		esc_tag = modifyString(esc_tag, "&quot;", "\"", 1);
+		esc_tag = modifyString(esc_tag, "&apos;", "'", 1);
 	}
 	else if( force_alloc )
 		esc_tag = strdup(tag);
@@ -380,7 +383,6 @@ is_video(const char * file)
 		ends_with(file, ".mts") || ends_with(file, ".m2ts")  ||
 		ends_with(file, ".m2t") || ends_with(file, ".mkv")   ||
 		ends_with(file, ".vob") || ends_with(file, ".ts")    ||
-		ends_with(file, ".tp")  || ends_with(file, ".rmvb")  ||
 		ends_with(file, ".flv") || ends_with(file, ".xvid")  ||
 #ifdef TIVO_SUPPORT
 		ends_with(file, ".TiVo") ||
@@ -502,3 +504,10 @@ resolve_unknown_type(const char * path, media_types dir_type)
 	return type;
 }
 
+long uptime(void)
+{
+	struct sysinfo info;
+	sysinfo(&info);
+
+	return info.uptime;
+}

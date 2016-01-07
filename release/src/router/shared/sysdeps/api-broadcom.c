@@ -162,7 +162,6 @@ int get_switch_model(void)
 	close(fd);
 	if (ret < 0)
 		goto skip;
-
 	if (devid == 0x25)
 		return SWITCH_BCM5325;
 	else if (devid == 0x3115)
@@ -176,6 +175,78 @@ skip:
 	return SWITCH_UNKNOWN;
 }
 
+#ifdef RTCONFIG_BCM5301X_TRAFFIC_MONITOR
+
+uint32_t robo_ioctl_len(int fd, int write, int page, int reg, uint32_t *value, uint32_t len)
+{
+	static int __ioctl_args[2] = { SIOCGETCROBORD, SIOCSETCROBOWR };
+	struct ifreq ifr;
+	int ret, vecarg[4];
+	int i;
+
+	memset(&ifr, 0, sizeof(ifr));
+	strcpy(ifr.ifr_name, "eth0");
+	ifr.ifr_data = (caddr_t) vecarg;
+
+	vecarg[0] = (page << 16) | reg;
+	vecarg[1] = len;
+
+	ret = ioctl(fd, __ioctl_args[write], (caddr_t)&ifr);
+
+	*value = vecarg[2];
+
+	return ret;
+}
+
+uint32_t traffic_wanlan(char *ifname, uint32_t *rx, uint32_t *tx)
+{
+	int fd, model;
+	uint32_t value;
+	char port_name[30] = {0};
+	char port[30], *next;
+
+	*rx = 0;
+	*tx = 0;
+
+	strcat_r(ifname, "ports", port_name);
+
+	fd = socket(AF_INET, SOCK_DGRAM, 0);
+	if (fd < 0) return 0;
+
+	/* RX */
+	foreach (port, nvram_safe_get(port_name), next) {
+		if(strncmp(port, CPU_PORT, 1) != 0
+#ifdef RTAC87U
+			&& strncmp(port, RGMII_PORT, 1) != 0
+#endif
+		){
+			if (robo_ioctl_len(fd, 0 /* robord */, MIB_P0_PAGE + atoi(port), MIB_RX_REG, &value, 8) < 0)
+				_dprintf("et ioctl SIOCGETCROBORD failed!\n");
+			else{
+				*rx = *rx + value;
+			}
+		}
+	}
+
+	/* TX */
+	foreach (port, nvram_safe_get(port_name), next) {
+		if(strncmp(port, CPU_PORT, 1) != 0
+#ifdef RTAC87U
+			&& strncmp(port, RGMII_PORT, 1) != 0
+#endif
+		){
+			if (robo_ioctl_len(fd, 0 /* robord */, MIB_P0_PAGE + atoi(port), MIB_TX_REG, &value, 8) < 0)
+				_dprintf("et ioctl SIOCGETCROBORD failed!\n");
+			else{
+				*tx = *tx  + value;
+			}
+		}
+	}
+	close(fd);
+	return 1;
+}
+#endif	/* RTCONFIG_BCM5301X_TRAFFIC_MONITOR */
+
 int robo_ioctl(int fd, int write, int page, int reg, uint32_t *value)
 {
 	static int __ioctl_args[2] = { SIOCGETCROBORD, SIOCSETCROBOWR };
@@ -187,7 +258,7 @@ int robo_ioctl(int fd, int write, int page, int reg, uint32_t *value)
 	ifr.ifr_data = (caddr_t) vecarg;
 
 	vecarg[0] = (page << 16) | reg;
-#ifdef BCM5301X
+#if defined(BCM5301X) || defined(RTAC1200G) || defined(RTAC1200GP)
 	vecarg[1] = 0;
 	vecarg[2] = *value;
 #else
@@ -195,7 +266,7 @@ int robo_ioctl(int fd, int write, int page, int reg, uint32_t *value)
 #endif
 	ret = ioctl(fd, __ioctl_args[write], (caddr_t)&ifr);
 
-#ifdef BCM5301X
+#if defined(BCM5301X) || defined(RTAC1200G) || defined(RTAC1200GP)
 	*value = vecarg[2];
 #else
 	*value = vecarg[1];
@@ -485,6 +556,10 @@ int check_imagefile(char *fname)
 		uint8_t ver[4];			/* Firmware version */
 		uint8_t pid[MAX_PID_LEN];	/* Product Id */
 		uint8_t hw[MAX_HW_COUNT][4];	/* Compatible hw list lo maj.min, hi maj.min */
+#ifdef RTCONFIG_BCMWL6A
+		uint16_t sn;
+		uint16_t en;
+#endif
 		uint8_t	pad[0];			/* Padding up to MAX_VERSION_LEN */
 	} version;
 	int i, model;
@@ -512,6 +587,19 @@ int check_imagefile(char *fname)
 		_dprintf("check crc error!!!\n");
 		return 0;
 	}
+
+#if defined(RTCONFIG_BCMWL6A) && !(defined(RTCONFIG_BCM7) || defined(RTCONFIG_BCM_7114))
+	doSystem("nvram set cpurev=`cat /dev/mtd0 | grep cpurev | cut -d \"=\" -f 2`");
+	if (nvram_match("cpurev", "c0") &&
+	   (!version.sn ||
+	    !version.en ||
+	     version.sn < 380 ||
+	    (version.sn == 380 && version.en < 943)))
+	{
+		dbg("version check fail!\n");
+		return 0;
+	}
+#endif
 
 	model = get_model();
 
@@ -572,7 +660,7 @@ int get_radio(int unit, int subunit)
 		}
 		else
 		{
-			ret = qcsapi_wifi_rfstatus(WIFINAME, (qcsapi_unsigned_int *) &n);
+			ret = qcsapi_wifi_rfstatus((qcsapi_unsigned_int *) &n);
 //			if (ret < 0)
 //				dbG("Qcsapi qcsapi_wifi_rfstatus %s error, return: %d\n", wl_vifname_qtn(unit, subunit), ret);
 

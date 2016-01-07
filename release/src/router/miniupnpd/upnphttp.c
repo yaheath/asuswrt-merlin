@@ -12,7 +12,6 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <arpa/inet.h>	//!!TB
 #include <sys/param.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -61,7 +60,7 @@ static int verify_callback(int preverify_ok, X509_STORE_CTX *ctx)
 
 int init_ssl(void)
 {
-	SSL_METHOD *method;
+	const SSL_METHOD *method;
 	SSL_library_init();
 	SSL_load_error_strings();
 	method = TLSv1_server_method();
@@ -902,8 +901,7 @@ Process_upnphttp(struct upnphttp * h)
 		}
 		else if(n==0)
 		{
-			syslog(LOG_WARNING, "HTTP Connection from %s closed unexpectedly",
-				inet_ntoa(h->clientaddr));	//!!TB - added client address
+			syslog(LOG_WARNING, "HTTP Connection from %s closed unexpectedly", inet_ntoa(h->clientaddr));
 			h->state = EToDelete;
 		}
 		else
@@ -973,8 +971,7 @@ Process_upnphttp(struct upnphttp * h)
 		}
 		else if(n==0)
 		{
-			syslog(LOG_WARNING, "HTTP Connection from %s closed unexpectedly",
-				inet_ntoa(h->clientaddr));	//!!TB - added client address
+			syslog(LOG_WARNING, "HTTP Connection from %s closed unexpectedly", inet_ntoa(h->clientaddr));
 			h->state = EToDelete;
 		}
 		else

@@ -8,6 +8,7 @@
 #include <sys/wait.h>
 #include <sys/reboot.h>
 #include <sys/klog.h>
+#include <arpa/inet.h>
 #include <bcmnvram.h>
 #include <rc.h>
 #include <shutils.h>
@@ -20,6 +21,28 @@
 
 extern void get_country_code_from_rc(char* country_code);
 extern struct nvram_tuple router_defaults[];
+
+
+// from in.h
+#define IN_CLASSB_NET           0xffff0000
+#define IN_CLASSB_HOST          (0xffffffff & ~IN_CLASSB_NET)
+// from net.h
+#define LINKLOCAL_ADDR	0xa9fe0000
+// from zcip.c and revised
+// Pick a random link local IP address on 169.254/16, except that
+// the first and last 256 addresses are reserved.
+void pick_a_random_ipv4(char* buf_ip)
+{
+	unsigned tmp;
+	unsigned int tmp_ip;
+
+	do {
+		tmp = rand() & IN_CLASSB_HOST;
+	} while (tmp > (IN_CLASSB_HOST - 0x0200));
+	tmp_ip = (LINKLOCAL_ADDR + 0x0100) + tmp;
+	sprintf(buf_ip,"%d.%d.%d.%d",tmp_ip>>24,(tmp_ip>>16)&0xff,(tmp_ip>>8)&0xff,tmp_ip&0xff);
+}
+
 
 //find the wan setting from WAN List and convert to 
 //wan_xxx for original rc flow.
@@ -115,7 +138,9 @@ void convert_dsl_wan()
 		if (nvram_match("dslx_transmode","ptm")) {
 			if (nvram_match("dsl8_proto","pppoe")) {
 				nvram_set("wan0_proto", "pppoe");
-				nvram_set_int("wan0_dhcpenable_x", 2);
+				/* Turn off DHCP on MAN interface */
+				nvram_set("wan0_dhcpenable_x", "1");
+				nvram_set("wan0_vpndhcp", "0");
 			}
 			else if (nvram_match("dsl8_proto","bridge")) {
 				nvram_set("wan0_nat_x","0");
@@ -129,7 +154,8 @@ void convert_dsl_wan()
 			if (nvram_match("dsl0_proto","pppoe") || nvram_match("dsl0_proto","pppoa")) {
 				nvram_set("wan0_proto","pppoe");
 				/* Turn off DHCP on MAN interface */
-				nvram_set_int("wan0_dhcpenable_x", 2);
+				nvram_set("wan0_dhcpenable_x", "1");
+				nvram_set("wan0_vpndhcp", "0");
 			}
 			else if (nvram_match("dsl0_proto","ipoa")) {
 				nvram_set("wan0_proto","static");
@@ -154,6 +180,61 @@ void convert_dsl_wan()
 		}
 	}
 	nvram_commit();
+}
+
+static int check_if_route_exist(char *iface, char *dest, char *mask)
+{
+	FILE *f;
+	int i, n;
+	char buf[256] = {0};
+	char get_iface[32] = {0};
+	u_int32_t get_dest, get_mask;
+	int found = 0;
+
+	if ((f = fopen("/proc/net/route", "r")) != NULL) {
+		while (fgets(buf, sizeof(buf), f) != NULL) {
+			if (++n == 1 && strncmp(buf, "Iface", 5) == 0)
+				continue;
+
+			i = sscanf(buf, "%255s %x %*s %*s %*s %*s %*s %x",
+				get_iface, &get_dest, &get_mask);
+
+			if (i != 3)
+				break;
+
+			if(!strcmp(iface, get_iface)
+				&& (u_int32_t)inet_addr(dest) == get_dest
+				&& (u_int32_t)inet_addr(mask) == get_mask
+			){
+				found = 1;
+				break;
+			}
+		}
+		fclose(f);
+
+		if (found)
+			return 1;
+	}
+
+	return 0;
+}
+
+static void check_and_set_comm_if(void)
+{
+#ifndef RTCONFIG_RALINK
+	const char *ipaddr;
+	char buf_ip[32];
+
+	ipaddr = getifaddr("vlan2", AF_INET, GIF_PREFIXLEN);
+	//_dprintf("%s: %s\n", __func__, ipaddr);
+	if(!ipaddr || (ipaddr && strncmp("169.254", ipaddr, 7))) {
+		pick_a_random_ipv4(buf_ip);
+		ifconfig("vlan2", IFUP, buf_ip, "255.255.0.0");
+	}
+
+	if(!check_if_route_exist("vlan2", "169.254.0.1", "255.255.255.255"))
+		route_add("vlan2", 0, "169.254.0.1", "0.0.0.0", "255.255.255.255");
+#endif
 }
 
 
@@ -181,7 +262,7 @@ void remove_dsl_autodet(void)
 }
 
 
-void convert_dsl_wan_settings(int req)
+void dsl_configure(int req)
 {
 	if (req == 0)
 	{
@@ -257,29 +338,8 @@ dsl_defaults(void)
 	eval("dd", "if=/dev/mtd3", "of=/tmp/trx_hdr.bin", "count=1");
 #endif
 
-	convert_dsl_wan_settings(0);
+	dsl_configure(0);
 }
-
-// from in.h
-#define IN_CLASSB_NET           0xffff0000
-#define IN_CLASSB_HOST          (0xffffffff & ~IN_CLASSB_NET)
-// from net.h
-#define LINKLOCAL_ADDR	0xa9fe0000
-// from zcip.c and revised
-// Pick a random link local IP address on 169.254/16, except that
-// the first and last 256 addresses are reserved.
-void pick_a_random_ipv4(char* buf_ip)
-{
-        unsigned tmp;
-		unsigned int tmp_ip;
-
-        do {
-                tmp = rand() & IN_CLASSB_HOST;
-        } while (tmp > (IN_CLASSB_HOST - 0x0200));
-        tmp_ip = (LINKLOCAL_ADDR + 0x0100) + tmp;
-		sprintf(buf_ip,"%d.%d.%d.%d",tmp_ip>>24,(tmp_ip>>16)&0xff,(tmp_ip>>8)&0xff,tmp_ip&0xff);
-}
-
 
 void start_dsl()
 {
@@ -296,11 +356,10 @@ void start_dsl()
 
 	/* Paul comment 2012/7/25, the "never overcommit" policy would cause Ralink WiFi driver kernel panic when configure DUT through external registrar. *
 	 * So let this value be the default which is 0, the kernel will estimate the amount of free memory left when userspace requests more memory. */
-	//system("echo 2 > /proc/sys/vm/overcommit_memory");
+	//f_write_string("/proc/sys/vm/overcommit_memory", "2", 0, 0);
 
-#ifndef RTCONFIG_RALINK
-	pick_a_random_ipv4(buf_ip);
-	eval("ifconfig", "vlan2", buf_ip);
+#ifdef RTCONFIG_DSL_TCLINUX
+	check_and_set_comm_if();
 #endif
 
 #ifndef RTCONFIG_DSL_TCLINUX
@@ -386,11 +445,20 @@ void start_dsl()
 		_eval(argv_auto_det, NULL, 0, &pid);
 	}
 #endif	//nRTCONFIG_DSL_TCLINUX
+
+#ifdef RTCONFIG_DSL_TCLINUX
+	if(nvram_match("dslx_diag_enable", "1") && nvram_match("dslx_diag_state", "1"))
+		start_dsl_diag();
+#endif
 }
 
 void stop_dsl()
 {
-	// dsl service need not to stop
+#ifdef RTCONFIG_DSL_TCLINUX
+	eval("req_dsl_drv", "runtcc");
+	eval("req_dsl_drv", "dumptcc");
+#endif
+	eval("adslate", "quitdrv");
 }
 
 // a workaround handler, can be removed after bug found

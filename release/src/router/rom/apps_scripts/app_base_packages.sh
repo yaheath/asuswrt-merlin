@@ -126,7 +126,7 @@ if [ ! -f "$APPS_INSTALL_PATH/bin/ipkg" ] || [ -z "$had_uclibc" ]; then
 		cd $CURRENT_PWD
 		rm -rf $target
 	else
-		if [ "$link_internet" != "1" ]; then
+		if [ "$link_internet" != "2" ]; then
 			echo "Couldn't connect Internet to install the base apps!"
 			nvram set apps_state_error=5
 			exit 1
@@ -151,25 +151,25 @@ if [ ! -f "$APPS_INSTALL_PATH/bin/ipkg" ] || [ -z "$had_uclibc" ]; then
 		fi
 		i=0
 		while [ $i -lt $wget_timeout ] && [ ! -f "$target" ]; do
-			i=$(($i+1))
+			i=$((i+1))
 			sleep 1
 		done
 
 		wget_pid=`pidof wget`
 		target_size=`ls -l $target |awk '{printf $5}'`
-		percent=$(($target_size*100/$base_size))
+		percent=$((target_size*100/base_size))
 		nvram set apps_download_percent=$percent
 		while [ -n "$wget_pid" ] && [ -n "$target_size" ] && [ $target_size -lt $base_size ]; do
 			sleep 1
 
 			wget_pid=`pidof wget`
 			target_size=`ls -l $target |awk '{printf $5}'`
-			percent=$(($target_size*100/$base_size))
+			percent=$((target_size*100/base_size))
 			nvram set apps_download_percent=$percent
 		done
 
 		target_size=`ls -l $target |awk '{printf $5}'`
-		percent=$(($target_size*100/$base_size))
+		percent=$((target_size*100/base_size))
 		nvram set apps_download_percent=$percent
 		if [ -z "$percent" ] || [ $percent -ne 100 ]; then
 			echo "Couldn't complete to download $base_file from Internet!"

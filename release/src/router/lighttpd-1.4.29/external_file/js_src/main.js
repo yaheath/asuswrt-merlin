@@ -81,18 +81,18 @@ function openLoginWindow(open_url){
 	login_html += '<table id="table_login" width="100%" height="100%" border="0" align="center" cellpadding="0" cellspacing="0" style="overflow:hidden;table-layout: fixed;">';	
 	login_html += '<tr>';
 	login_html += '<td>';
-  	login_html += '<form name="form_login">';
-	login_html += '<fieldset width="120px">';
+  	//login_html += '<form id="form_login">';
+	login_html += '<div id="main">';
 	login_html += '<table>';
 	login_html += '<tr>';
-	login_html += '<td><label id="username">' + m.getString('title_username') + '</label></td><td><input name="username" type="text" id="username" autocapitalize="off" maxlength="20" style="width:250px"></td>';
+	login_html += '<td><label id="username">' + m.getString('title_username') + '</label></td><td><input name="username" class="dialog_text_input" type="text" id="username" autocapitalize="off" maxlength="20" style="width:290px"></td>';
 	login_html += '</tr>';
 	login_html += '<tr>';
-	login_html += '<td><label id="password">' + m.getString('title_password') + '</label></td><td><input name="password" type="password" id="password" maxlength="16" style="width:250px"></td>';
+	login_html += '<td><label id="password">' + m.getString('title_password') + '</label></td><td><input name="password" class="dialog_text_input" type="password" id="password" maxlength="16" style="width:290px"></td>';
 	login_html += '</tr>';
 	login_html += '</table>';
-	login_html += '</fieldset>';
-	login_html += '</form>';
+	login_html += '</div>';
+	//login_html += '</form>';
   	login_html += '</td>';
  	login_html += '</tr>';
   	login_html += '<tr style="height:10px"></tr>';
@@ -178,7 +178,7 @@ function doMKDIR(name){
 	});
 }
 
-function doRENAME(old_name, new_name){
+function doRENAME(old_name, new_name, callbackHandler){
 	
 	var already_exists = 0;
 	var openurl = addPathSlash(g_storage.get('openurl'));
@@ -193,12 +193,17 @@ function doRENAME(old_name, new_name){
 				alert(m.getString('folder_already_exist_msg'));
 			else
 				alert(m.getString('file_already_exist_msg'));
+				
 			return;
 		}
 	});
 	
-	if(already_exists==1)
+	if(already_exists==1){
+		if(callbackHandler)
+			callbackHandler();
+			
 		return;
+	}
 	
 	//alert(old_name + '-> ' + this_url);
 		
@@ -206,6 +211,10 @@ function doRENAME(old_name, new_name){
 		
 		if (status != '201') {
      		alert(m.getString("msg_already_lock"));
+     		
+     		if(callbackHandler)
+				callbackHandler();
+				
 			return;
 		}
     
@@ -216,15 +225,22 @@ function doRENAME(old_name, new_name){
 				doPROPFIND(openurl);
 				closeJqmWindow(0);
 			}
-			else
+			else{
 				alert(m.getString(error));
 				
+				if(callbackHandler)
+					callbackHandler();
+			}
+			
 			g_webdav_client.UNLOCK(old_name, locktoken, function(error){
 				if(error!=204)
 					alert("Unlock error: " + error);
+					
+				if(callbackHandler)
+					callbackHandler();
 			}); 
-		
-		}, null, "F", locktoken);
+			
+		}, null, false, locktoken);
 	
 	}, null);
 		
@@ -238,6 +254,54 @@ function doRENAME(old_name, new_name){
 			alert(m.getString(error) + " : " + decodeURI(old_name));
 	}, null, false);
 	*/
+}
+
+function doCOPYMOVE(action, source, dest, overwrite, callbackHandler){
+		
+	g_webdav_client.LOCK(source, '', function(status, statusstring, content, headers){
+		
+		if (status != '201') {
+     		alert(m.getString("msg_already_lock"));
+     		
+     		if(callbackHandler)
+				callbackHandler(status);
+					
+			return;
+		}
+    	
+    	var locktoken = getLockToken(content);
+    	
+    	if(action=="copy"){
+			g_webdav_client.COPY(source, dest, function(code){
+					
+				g_webdav_client.UNLOCK(source, locktoken, function(error){
+					if(error!=204)
+						alert("Unlock error: " + error);
+				});
+				
+				if(callbackHandler)
+					callbackHandler(code);
+						
+			}, null, (overwrite==true) ? "T" : "F", locktoken);
+		}
+		else if(action=="move"){
+			g_webdav_client.MOVE(source, dest, function(code){
+				
+				g_webdav_client.UNLOCK(source, locktoken, function(error){
+					if(error!=204)
+						alert("Unlock error: " + error);
+				});
+				
+				if(callbackHandler)
+					callbackHandler(code);
+					
+			}, null, (overwrite==true) ? "T" : "F", locktoken);
+		}
+		else{
+			alert("Invalid action specified!");
+		}
+		
+	}, null);
 }
 
 function getFileViewHeight(){
@@ -749,7 +813,8 @@ function doPROPFIND(open_url, complete_handler, auth){
 						$("#btnCancelUpload").css("display", (g_upload_mode==1) ? "block" : "none");
 						$("#btnChangeUser").css("display", (this_query_type==1&&this_isusb==0) ? "block" : "none");						
 						
-						$("span#username").text(this_router_username);
+						if(open_url=="/")
+							$("span#username").text(this_router_username);
 						
 						g_storage.set('isAidisk', this_isusb);
 						g_storage.set('openurl', open_url);
@@ -1561,6 +1626,7 @@ $(document).ready(function(){
 			if(error==200){
 				var data = parseXml(content);
 				var x = $(data);
+				
     			g_storage.set('webdav_mode', x.find("webdav_mode").text());
     			g_storage.set('http_port', x.find("http_port").text());
     			g_storage.set('https_port', x.find("https_port").text());
@@ -1568,6 +1634,7 @@ $(document).ready(function(){
     			g_storage.set('misc_http_enable', x.find("misc_http_enable").text());
     			g_storage.set('misc_http_port', String(x.find("misc_http_port").text()).replace("\n",""));
     			g_storage.set('misc_https_port', String(x.find("misc_https_port").text()).replace("\n",""));
+    			g_storage.set('lan_https_port', String(x.find("lan_https_port").text()).replace("\n",""));
     			g_storage.set('last_login_info', x.find("last_login_info").text());
     			g_storage.set('ddns_host_name', x.find("ddns_host_name").text());
     			g_storage.set('router_version', x.find("version").text());
@@ -1718,7 +1785,7 @@ $(document).ready(function(){
 		
 		open_rename_window(file_name, uhref, isdir);		
 	});
-	
+		
 	$("div#btnLock").click(function(){
 		if($(this).hasClass("disable"))
 			return false;
@@ -1984,10 +2051,11 @@ $(document).ready(function(){
 			addtoFavorite();
 		}
 		else if(func=="config"){
-			var http_enable = g_storage.get('http_enable'); //- 0: http, 1: https, 2: both
-			var misc_http_enable = g_storage.get('misc_http_enable');
+			var http_enable = parseInt(g_storage.get('http_enable')); //- 0: http, 1: https, 2: both
+			var misc_http_enable = parseInt(g_storage.get('misc_http_enable'));
 	    	var misc_http_port = g_storage.get('misc_http_port');
 	    	var misc_https_port = g_storage.get('misc_https_port');
+	    	var lan_https_port = g_storage.get('lan_https_port');
 	    	var location_host = window.location.host;
 	    	var misc_protocol = "http";
 	    	var misc_port = misc_http_port;
@@ -1998,20 +2066,24 @@ $(document).ready(function(){
 	    			return;
 	    		}
 	  		}
-	  	
-	  		if(http_enable=="0"){
-	  			misc_protocol = "http";
-	  			misc_port = misc_http_port;
-	  		}
-	  		else if(http_enable=="1"){
+	  			
+	  		if(http_enable==1){
 	  			misc_protocol = "https";
 	  			misc_port = misc_https_port;
 	  		}
-	  	
+	  		else{
+	  			misc_protocol = "http";
+	  			misc_port = misc_http_port;
+	  		}
+	  		
 	  		var url;
 	  		  			
-	  		if( isPrivateIP() )
+	  		if( isPrivateIP() ){
 	  			url = misc_protocol + "://" + location_host.split(":")[0];
+	  			
+	  			if(http_enable==1)
+	  				url += ":" + lan_https_port; 
+	  		}
 	  		else{
 	  			url = misc_protocol + "://" + location_host.split(":")[0];
 	  		
@@ -2020,27 +2092,6 @@ $(document).ready(function(){
 	  		}
 	  	
 	  		window.location = url;
-		}
-		else if(func=="help"){			
-			var $modalWindow = $("div#modalWindow");
-			
-			var page_size = getPageSize();
-			g_modal_window_height = page_size[1]-30;
-			
-			g_modal_window_width = g_modal_window_height*1.28;
-			
-			if(g_modal_window_width>page_size[0]){
-				g_modal_window_width = page_size[0];
-				g_modal_window_height = g_modal_window_width*0.78125;
-			}
-			
-			g_modal_url = '/smb/css/help.html?showbutton=1';
-			
-			$('#jqmMsg').css("display", "none");
-			$('#jqmTitleText').text(m.getString('title_help'));
-			if($modalWindow){
-				$modalWindow.jqmShow();
-			}	
 		}
 		else if(func=="rescan_samba"){
 			if(confirmCancelUploadFile()==0)
@@ -2083,6 +2134,18 @@ $(document).ready(function(){
 			g_modal_window_height = page_size[1]-30;
 			$('#jqmMsg').css("display", "none");
 			$('#jqmTitleText').text(m.getString('title_crt'));
+			if($modalWindow){
+				$modalWindow.jqmShow();
+			}
+		}
+		else if(func=="community"){
+			var $modalWindow = $("div#modalWindow");
+			var page_size = getPageSize();
+			g_modal_url = '/smb/css/setting.html?p=4&s=1';
+			g_modal_window_width = 800;
+			g_modal_window_height = page_size[1]-30;
+			$('#jqmMsg').css("display", "none");
+			$('#jqmTitleText').text(m.getString('title_community'));
 			if($modalWindow){
 				$modalWindow.jqmShow();
 			}
@@ -2255,6 +2318,7 @@ $(document).ready(function(){
 		
 	});
 	
+	/*
 	$("div#logo").click(function(){
 		if(g_fileview_only==1)
 			return;
@@ -2264,6 +2328,7 @@ $(document).ready(function(){
 			window.location.reload();
 		}, 0);
 	});
+	*/
 	
 	$("#button-select-all").click(function(){
 		
@@ -2361,79 +2426,129 @@ $(document).ready(function(){
 				open_upload2service_window("flickr", upload_files);
 				upload_files = null;
 			}
+			else if(key=="upload2picasa"){
+				if(g_select_array.length<=0)
+					return;
+					
+				var upload_files = new Array(0);
+				for(var i=0; i < g_select_array.length; i++){			  
+					var this_full_url = g_select_array[i].uhref;
+					var filext = getFileExt(this_full_url);
+									
+					if(filext=='jpg'||filext=='jpeg'||filext=='png'||filext=='gif'){
+						upload_files.push(this_full_url);
+					}
+				}
+				
+				open_upload2service_window("picasa", upload_files);
+				upload_files = null;
+			}
+			else if(key=="upload2twitter"){
+				if(g_select_array.length<=0)
+					return;
+					
+				var upload_files = new Array(0);
+				for(var i=0; i < g_select_array.length; i++){			  
+					var this_full_url = g_select_array[i].uhref;
+					var filext = getFileExt(this_full_url);
+									
+					if(filext=='jpg'||filext=='jpeg'||filext=='png'||filext=='gif'){
+						upload_files.push(this_full_url);
+					}
+				}
+				
+				open_upload2service_window("twitter", upload_files);
+				upload_files = null;
+			}
 			else if(key=="share2facebook"){
 				if(g_select_array.length<=0)
 					return;
 				
-				var selectURL = g_storage.get('openurl');	
-				var selectFileArray = new Array();
-					
+				var selectFileArray = new Array(0);
 				for(var i=0; i < g_select_array.length; i++){			  
-					var this_file = g_select_array[i].title;
-					selectFileArray.push(this_file);
+					var this_full_url = g_select_array[i].uhref;
+					selectFileArray.push(this_full_url);
 				}
 								
-				open_sharelink_window("facebook", selectURL, selectFileArray);
+				open_sharelink_window("facebook", selectFileArray);
 				selectFileArray = null;
 			}
 			else if(key=="share2googleplus"){
 				if(g_select_array.length<=0)
 					return;
 				
-				var selectURL = g_storage.get('openurl');	
-				var selectFileArray = new Array();
-					
+				var selectFileArray = new Array(0);
 				for(var i=0; i < g_select_array.length; i++){			  
-					var this_file = g_select_array[i].title;
-					selectFileArray.push(this_file);
+					var this_full_url = g_select_array[i].uhref;
+					selectFileArray.push(this_full_url);
 				}
 								
-				open_sharelink_window("googleplus", selectURL, selectFileArray);
+				open_sharelink_window("googleplus", selectFileArray);
 				selectFileArray = null;
 			}
 			else if(key=="share2twitter"){
 				if(g_select_array.length<=0)
 					return;
 				
-				var selectURL = g_storage.get('openurl');	
-				var selectFileArray = new Array();
-					
+				var selectFileArray = new Array(0);
 				for(var i=0; i < g_select_array.length; i++){			  
-					var this_file = g_select_array[i].title;
-					selectFileArray.push(this_file);
+					var this_full_url = g_select_array[i].uhref;
+					selectFileArray.push(this_full_url);
 				}
 								
-				open_sharelink_window("twitter", selectURL, selectFileArray);
+				open_sharelink_window("twitter", selectFileArray);
 				selectFileArray = null;
 			}
 			else if(key=="share2plurk"){
 				if(g_select_array.length<=0)
 					return;
 				
-				var selectURL = g_storage.get('openurl');	
-				var selectFileArray = new Array();
-					
+				var selectFileArray = new Array(0);
 				for(var i=0; i < g_select_array.length; i++){			  
-					var this_file = g_select_array[i].title;
-					selectFileArray.push(this_file);
+					var this_full_url = g_select_array[i].uhref;
+					selectFileArray.push(this_full_url);
 				}
 								
-				open_sharelink_window("plurk", selectURL, selectFileArray);
+				open_sharelink_window("plurk", selectFileArray);
+				selectFileArray = null;
+			}
+			else if(key=="share2weibo"){
+				if(g_select_array.length<=0)
+					return;
+				
+				var selectFileArray = new Array(0);
+				for(var i=0; i < g_select_array.length; i++){			  
+					var this_full_url = g_select_array[i].uhref;
+					selectFileArray.push(this_full_url);
+				}
+				
+				open_sharelink_window("weibo", selectFileArray);
+				selectFileArray = null;
+			}
+			else if(key=="share2qq"){
+				if(g_select_array.length<=0)
+					return;
+				
+				var selectFileArray = new Array(0);
+				for(var i=0; i < g_select_array.length; i++){			  
+					var this_full_url = g_select_array[i].uhref;
+					selectFileArray.push(this_full_url);
+				}
+				
+				open_sharelink_window("qq", selectFileArray);
 				selectFileArray = null;
 			}
 			else if(key=="sharelink"){
 				if(g_select_array.length<=0)
 					return;
 				
-				var selectURL = g_storage.get('openurl');
-				var selectFileArray = new Array();
-					
+				var selectFileArray = new Array(0);
 				for(var i=0; i < g_select_array.length; i++){			  
-					var this_file = g_select_array[i].title;
-					selectFileArray.push(this_file);
+					var this_full_url = g_select_array[i].uhref;
+					selectFileArray.push(this_full_url);
 				}
 					
-				open_sharelink_window("other", selectURL, selectFileArray);
+				open_sharelink_window("other", selectFileArray);
 				selectFileArray = null;
 			}
         },
@@ -2461,6 +2576,12 @@ $(document).ready(function(){
 					},
 					"upload2flickr": {
 						name: m.getString("title_flickr")
+					},
+					"upload2picasa": {
+						name: m.getString("title_picasa")
+					},
+					"upload2twitter": {
+						name: m.getString("title_twitter")
 					}
                 }
             },
@@ -2478,6 +2599,12 @@ $(document).ready(function(){
 					},
 					"share2plurk": {
 						name: m.getString("title_plurk")
+					},
+					"share2weibo": {
+						name: m.getString("title_weibo")
+					},
+					"share2qq": {
+						name: m.getString("title_qq")
 					}
                 }
             },
@@ -2485,6 +2612,38 @@ $(document).ready(function(){
         }
     });
 	
+	$.contextMenu({
+        selector: 'div#btnCopyMove', 
+		trigger: 'left',
+		callback: function(key, options) {
+			
+			if(key=="copy"||key=="move"){
+				if(g_select_array.length<=0)
+					return;
+				
+				var selectURL = g_storage.get('openurl');	
+				var selectFileArray = new Array();
+					
+				for(var i=0; i < g_select_array.length; i++){			  
+					var this_file = g_select_array[i].title;
+					selectFileArray.push(this_file);
+				}
+				
+				open_copymove_window(key, selectURL, selectFileArray);
+				
+				selectFileArray = null;
+			}
+        },
+        items: {
+        	"copy": {
+				name: m.getString("func_copy")
+			},
+			"move": {
+				name: m.getString("func_move")
+			}
+        }
+    });
+    
 	$.contextMenu({
         selector: 'div#btnUpload', 
 		trigger: 'left',
@@ -2571,6 +2730,12 @@ $(document).ready(function(){
 					doPROPFIND(openurl);
 				});
 			}
+			else if(key=="copy"){	
+				open_copymove_window(key, g_storage.get('openurl'), file_name);
+			}
+			else if(key=="move"){	
+				open_copymove_window(key, g_storage.get('openurl'), file_name);
+			}
 			else if(key=="rename"){	
 				open_rename_window(file_name, uhref, isdir);
 			}
@@ -2586,25 +2751,39 @@ $(document).ready(function(){
 			else if(key=="upload2flickr"){
 				open_upload2service_window("flickr", uhref);
 			}
+			else if(key=="upload2picasa"){
+				open_upload2service_window("picasa", uhref);
+			}
+			else if(key=="upload2twitter"){
+				open_upload2service_window("twitter", uhref);
+			}
 			else if(key=="share2facebook"){
-				var selectURL = g_storage.get('openurl');
-				open_sharelink_window("facebook", selectURL, file_name);
+				open_sharelink_window("facebook", uhref);
 			}
 			else if(key=="share2googleplus"){
-				var selectURL = g_storage.get('openurl');
-				open_share2service_window("googleplus", selectURL, file_name);
+				open_sharelink_window("googleplus", uhref);
 			}
 			else if(key=="share2twitter"){
-				var selectURL = g_storage.get('openurl');
-				open_sharelink_window("twitter", selectURL, file_name);
+				open_sharelink_window("twitter", uhref);
 			}
 			else if(key=="share2plurk"){
-				var selectURL = g_storage.get('openurl');
-				open_sharelink_window("plurk", selectURL, file_name);
+				open_sharelink_window("plurk", uhref);
+			}
+			else if(key=="share2weibo"){
+				open_sharelink_window("weibo", uhref);
+			}
+			else if(key=="share2qq"){
+				open_sharelink_window("qq", uhref);
 			}
 			else if(key=="sharelink"){				
-				var selectURL = g_storage.get('openurl');
-				open_sharelink_window("other", selectURL, file_name);
+				var selectFileArray = new Array(0);
+				for(var i=0; i < g_select_array.length; i++){			  
+					var this_full_url = g_select_array[i].uhref;
+					selectFileArray.push(this_full_url);
+				}
+					
+				open_sharelink_window("other", selectFileArray);
+				selectFileArray = null;
 			}
         },
         items: {
@@ -2617,7 +2796,17 @@ $(document).ready(function(){
 					   return true;
 				}
 			},
-			"sep1": "---------",
+			"submenu_copymove": { 
+				name : m.getString("title_copymove"),
+                items : {
+                	"copy": {
+						name: m.getString("func_copy")
+					},
+					"move": {
+						name: m.getString("func_move")
+					}
+                }
+            },
 			"rename": {
 				name: m.getString("func_rename"),
 				disabled: function(){
@@ -2627,7 +2816,23 @@ $(document).ready(function(){
 					   return true;
 				}
 			},
-            "download": {name: m.getString("func_download")},
+			"sep1": "---------",
+            "download": {
+            	name: m.getString("func_download"),
+            	disabled: function(){
+					if(g_select_array.length<=0)
+						return true;
+					
+					for(var i=0; i < g_select_array.length; i++){
+						if(g_select_array[i].isdir=="1"){
+							//- Disable download function while selected the folder before we found the solution to download folder.
+							return true;
+						}
+					}
+							
+					return false;
+				}
+			},
 			"sep2": "---------",
 			"submenu_upload": { 
 				name : m.getString("title_upload2"),
@@ -2652,6 +2857,12 @@ $(document).ready(function(){
 					},
 					"upload2flickr": {
 						name: m.getString("title_flickr")
+					},
+					"upload2picasa": {
+						name: m.getString("title_picasa")
+					},
+					"upload2twitter": {
+						name: m.getString("title_twitter")
 					}
                 }
             },
@@ -2669,6 +2880,12 @@ $(document).ready(function(){
 					},
 					"share2plurk": {
 						name: m.getString("title_plurk")
+					},
+					"share2weibo": {
+						name: m.getString("title_weibo")
+					},
+					"share2qq": {
+						name: m.getString("title_qq")
 					}
                 }
             },

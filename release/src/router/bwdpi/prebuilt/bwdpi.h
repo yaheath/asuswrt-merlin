@@ -58,6 +58,9 @@
 #define SIG_VER			"/proc/nk_policy"
 #define DPI_VER			"/proc/ips_info"
 
+// traffic analyzer database
+#define TRAFFIC_DB_PATH         (strcmp(nvram_safe_get("bwdpi_db_path"), "")) ? nvram_safe_get("bwdpi_db_path") : "/jffs/traffic.db"
+
 typedef struct cat_id cid_s;
 struct cat_id{
 	int id;
@@ -87,14 +90,15 @@ struct mac_group{
 typedef struct bwdpi_client bwdpi_device;
 struct bwdpi_client{
 	char hostname[32];
-	char devicetype[100];
-	char classname[100];
+	char vendor_name[100];
 	char type_name[100];
+	char device_name[100];
 };
 
 typedef struct mail_info mail_s;
 struct mail_info{
 	int type;
+	char rule[32];
 	char mac[18];
 	char hostname[100];
 	char url[128];
@@ -118,7 +122,7 @@ struct mail_info{
 
 //iqos.c
 extern char *dev_lan;
-extern void check_qosd_wan_setting(char *dev_wan);
+extern void check_qosd_wan_setting(char *dev_wan, int len);
 extern void setup_qos_conf();
 extern void stop_tm_qos();
 extern void start_tm_qos();
@@ -157,7 +161,7 @@ extern void get_traffic_hook(char *mode, char *name, char *dura, char *date, int
 extern void get_device_hook(char *MAC, int *retval, webs_t wp);
 extern void get_device_stat(char *MAC);
 extern int device_main(char *MAC);
-extern void bwdpi_client_info(char *MAC, bwdpi_device *device);
+extern int bwdpi_client_info(char *MAC, bwdpi_device *device);
 extern int device_info_main(char *MAC);
 extern int wrs_url_main();
 extern void redirect_page_status(int cat_id, int *retval, webs_t wp);
@@ -165,13 +169,10 @@ extern int get_anomaly_main(char *cmd);
 extern int get_app_patrol_main();
 
 //dpi.c
-extern int check_bwdpi_nvram_setting();
 extern void stop_dpi_engine_service(int forced);
 extern void run_dpi_engine_service();
 extern void start_dpi_engine_service();
 extern void save_version_of_bwdpi();
-extern void stop_bwdpi_monitor_service();
-extern void start_bwdpi_monitor_service();
 extern void setup_dev_wan();
 
 //web_history.c
@@ -191,6 +192,7 @@ extern int data_collect_main(char *cmd, char *path);
 
 //tools.c
 extern int debug; // bwdpi_debug or wrs_debug
+extern int check_filesize_over(char *path, long int size);
 extern void check_filesize(char *path, long int size);
 extern void StampToDate(unsigned long timestamp, char *date);
 extern void rewrite_logfile(char *path1, char *path2, char *path3);
@@ -198,3 +200,6 @@ extern void get_hostname_from_NMP(char *mac, char *hostname);
 extern void erase_symbol(char *old, char *sym);
 extern void extract_data(char *path, FILE *fp);
 
+//watchdog_check.c
+extern void auto_sig_check();
+extern void sqlite_db_check();

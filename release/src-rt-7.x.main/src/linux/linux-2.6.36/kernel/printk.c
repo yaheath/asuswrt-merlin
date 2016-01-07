@@ -170,11 +170,6 @@ void log_buf_kexec_setup(void)
 }
 #endif
 
-/*
-#define CONFIG_DUMP_PREV_OOPS_MSG 1
-#define CONFIG_DUMP_PREV_OOPS_MSG_BUF_ADDR 0xC0000000
-#define	CONFIG_DUMP_PREV_OOPS_MSG_BUF_LEN 0x2000
-*/
 #ifdef CONFIG_DUMP_PREV_OOPS_MSG 
 struct oopsbuf_s {
          char sig[8];
@@ -203,11 +198,18 @@ static inline void copy_char_to_oopsbuf(char c)
         oopsbuf->buf[oopsbuf->len++] = c;
 }
 
+static char local_buf[CONFIG_DUMP_PREV_OOPS_MSG_BUF_LEN];
+static int local_buf_len = 0;
+
 int prepare_and_dump_previous_oops(void)
 {
+#if 0
         int len;
+#endif
         unsigned char *u;
+#if 0
         char *p, *q, log_prefix[] = "<?>>>>XXXXXX";
+#endif
         //printk("* KERNEL: prepare_and_dump_oops: %08x::%d\n", CONFIG_DUMP_PREV_OOPS_MSG_BUF_ADDR, MAX_PREV_OOPS_MSG_LEN);
 
         oopsbuf = (struct oopsbuf_s *) (CONFIG_DUMP_PREV_OOPS_MSG_BUF_ADDR);
@@ -219,6 +221,9 @@ int prepare_and_dump_previous_oops(void)
                         oopsbuf->len);
         }
         if (oopsbuf->len > 32 && oopsbuf->len < MAX_PREV_OOPS_MSG_LEN) {
+		memcpy(local_buf, oopsbuf->buf, oopsbuf->len);
+		local_buf_len = oopsbuf->len;
+#if 0
                 /* Fix-up oops message.
                  * If message is broken by NULL character, use space character instead.
                  * If character is not printable, use the '.' character instead.
@@ -244,6 +249,7 @@ int prepare_and_dump_previous_oops(void)
                         printk("%s>>> %s\n", log_prefix, q);
                 }
                 printk("____________________________________________________________________________\n");
+#endif
         }
 
         /* Initialize oopsbuf */
@@ -252,6 +258,22 @@ int prepare_and_dump_previous_oops(void)
         memset(oopsbuf->buf, 0, MAX_PREV_OOPS_MSG_LEN);
         return 0;
 }
+
+void dump_previous_oops(void)
+{
+	int i;
+
+	if (local_buf_len) {
+		printk("_ Reboot message ... _______________________________________________________\n");
+		for (i = 0; i < local_buf_len; i++)
+			printk("%c", local_buf[i]);
+		printk("\n____________________________________________________________________________\n");
+
+		memcpy(local_buf, oopsbuf->buf, oopsbuf->len);
+		local_buf_len = oopsbuf->len;
+	}
+}
+EXPORT_SYMBOL(dump_previous_oops);
 #endif //End of CONFIG_DUMP_PREV_OOPS_MSG
 
 static int __init log_buf_len_setup(char *str)

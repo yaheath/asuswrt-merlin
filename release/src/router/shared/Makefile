@@ -71,6 +71,12 @@ OBJS += et_linux.o bcmwifi_channels.o
 else ifeq ($(RTCONFIG_HSPOT),y)
 OBJS += bcmwifi_channels.o
 endif
+ifeq ($(RTCONFIG_BCM_7114),y)
+OBJS += confmtd_utils.o
+ifeq ($(RTCONFIG_GMAC3),y)
+OBJS += et_linux.o
+endif
+endif
 
 ifeq ($(RTCONFIG_RALINK),y)
 OBJS += $(TOP)/wireless_tools/iwlib.o
@@ -78,7 +84,7 @@ OBJS += flash_mtd.o api-ralink.o
 ifeq ($(RTCONFIG_RALINK_RT3052),y)
 OBJS += ra3052.o
 endif
-ifeq ($(RTN14U)$(RTAC52U)$(RTAC51U)$(RTN11P)$(RTN54U)$(RTAC1200HP)$(RTN56UB1)$(RTAC54U),y)
+ifeq ($(RTN14U)$(RTAC52U)$(RTAC51U)$(RTN11P)$(RTN300)$(RTN54U)$(RTAC1200HP)$(RTN56UB1)$(RTN56UB2)$(RTAC54U),y)
 CFLAGS += -DRA_ESW
 OBJS += mt7620.o
 else
@@ -96,7 +102,7 @@ OBJS += broadcom.o api-broadcom.o
 ifeq ($(RTCONFIG_DSL_TCLINUX),y)
 OBJS += api-tclinux.o
 endif
-ifeq ($(RTCONFIG_RTL8365MB),y)
+ifeq ($(RTCONFIG_EXT_RTL8365MB),y)
 CFLAGS += -I$(LINUXDIR)/drivers/char/rtl8365mb
 OBJS += rtl_8365mb.o
 endif
@@ -131,6 +137,18 @@ CFLAGS	+= -I$(TOP)/bled
 OBJS	+= bled.o
 endif
 
+ifeq ($(RTCONFIG_QCA_PLC_UTILS),y)
+OBJS	+= plc_utils.o
+endif
+
+ifeq ($(RTCONFIG_TCODE),y)
+OBJS    += tcode.o
+endif
+
+#ifeq ($(RTCONFIG_BCM5301X_TRAFFIC_MONITOR),y)
+#OBJS    += private.o
+#endif
+
 vpath %.c sysdeps $(SRCBASE)/shared/ $(WLAN_ComponentSrcDirs)
 ifeq ($(RTCONFIG_RALINK),y)
 vpath %.c sysdeps/ralink
@@ -143,6 +161,7 @@ vpath %.c sysdeps/broadcom  $(SRCBASE)/shared/bcmwifi/src
 endif
 
 all: libshared.so libshared.a
+
 
 ifeq ($(CONFIG_BCMWL5),y)
 OBJS += wlif_utils.o UdpLib.o bcmutils.o
@@ -172,6 +191,20 @@ install: all
 clean:
 	rm -f *.o *.so *.a .*.depend sysdeps/*.o sysdeps/broadcom/*.o sysdeps/ralink/*.o sysdeps/qtn/*.o
 
+ifeq ($(RTCONFIG_TCODE),y)
+ifneq ($(wildcard ./prebuild/tcode.o),)
+tcode.o:
+	@-cp -f ./prebuild/tcode.o .
+endif
+endif
+
+ifeq ($(RTCONFIG_BCM5301X_TRAFFIC_MONITOR),y)
+ifneq ($(wildcard ./prebuild/private.o),)
+private.o:
+	@-cp -f ./prebuild/private.o .
+endif
+endif
+
 %.o: %.c .%.depend
 	@echo " [shared] CC $@"
 	@$(CC) $(CFLAGS) -o $@ -c $<
@@ -182,5 +215,5 @@ clean:
 .%.depend: %.c
 	@$(CC) $(CFLAGS) -M $< > $@
 
--include $(OBJS:%.o=.%.depend)
+#-include $(OBJS:%.o=.%.depend)
 

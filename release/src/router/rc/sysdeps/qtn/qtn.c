@@ -24,7 +24,6 @@ extern int file_lock(char *tag);
 extern void file_unlock(int lockfd);
 extern void char_to_ascii(const char *output, const char *input);
 
-char cmd[32];
 #define	WIFINAME	"wifi0"
 #if 0
 void inc_mac(char *mac, int plus);
@@ -74,8 +73,12 @@ setCountryCode_5G_qtn(const char *cc)
 		return -1;
 	}
 
-	sprintf(cmd, "asuscfe1:ccode=%s", cc);
-	eval("nvram", "set", cmd );
+	if (!factory_debug_raw()) {
+		fprintf(stderr, "ATE command error\n");
+		return -1;
+	}
+
+	ATE_BRCM_SET("1:ccode", cc);
 	puts(nvram_safe_get("1:ccode"));
 
 	return 1;
@@ -84,7 +87,7 @@ setCountryCode_5G_qtn(const char *cc)
 int
 getCountryCode_5G_qtn(void)
 {
-	puts(nvram_safe_get("1:ccode"));
+	puts(cfe_nvram_safe_get_raw("1:ccode"));
 
 	return 0;
 }
@@ -112,9 +115,12 @@ int setRegrev_5G_qtn(const char *regrev)
 		return -1;
 	}
 
-	memset(cmd, 0, 32);
-	sprintf(cmd, "asuscfe1:regrev=%s", regrev);
-	eval("nvram", "set", cmd );
+	if (!factory_debug_raw()) {
+		fprintf(stderr, "ATE command error\n");
+		return -1;
+	}
+
+	ATE_BRCM_SET("1:regrev", regrev);
 	puts(nvram_safe_get("1:regrev"));
 	return 1;
 }
@@ -122,14 +128,13 @@ int setRegrev_5G_qtn(const char *regrev)
 int
 getRegrev_5G_qtn(void)
 {
-	puts(nvram_safe_get("1:regrev"));
+	puts(cfe_nvram_safe_get_raw("1:regrev"));
 	return 0;
 }
 
 int setMAC_5G_qtn(const char *mac)
 {
 	int ret;
-	char cmd_l[64];
 	char value[20] = {0};
 
 	if( mac==NULL || !isValidMacAddr(mac) )
@@ -159,9 +164,12 @@ int setMAC_5G_qtn(const char *mac)
 		return -1;
 	}
 
-	memset(cmd_l, 0, 64);
-	sprintf(cmd_l, "asuscfe1:macaddr=%s", mac);
-	eval("nvram", "set", cmd_l );
+	if (!factory_debug_raw()) {
+		fprintf(stderr, "ATE command error\n");
+		return -1;
+	}
+
+	ATE_BRCM_SET("1:macaddr", mac);
 	// puts(nvram_safe_get("1:macaddr"));
 
 	puts(value);
@@ -690,6 +698,13 @@ int start_nodfs_scan_qtn(void)
 		logmessage("nodfs_scan", "scan not complete");
 	}
 
+	qcsapi_retval = qcsapi_wifi_scs_enable(WIFINAME, 1);
+	if (qcsapi_retval >= 0) {
+		logmessage("scs", "enable scs complete");
+	}else{
+		logmessage("scs", "enable scs not complete");
+	}
+
 	return 1;
 }
 
@@ -775,9 +790,12 @@ void fix_script_err(char *orig_str, char *new_str)
 	str_len = strlen(orig_str);
 
 	for ( i = 0; i < str_len; i++ ){
-		if(orig_str[i] == '$'){
+		if(orig_str[i] == '$' ||
+			orig_str[i] == '`' ||
+			orig_str[i] == '"' ||
+			orig_str[i] == '\\'){
 			new_str[j] = '\\';
-			new_str[j+1] = '$';
+			new_str[j+1] = orig_str[i];
 			j = j + 2;
 		}else{
 			new_str[j] = orig_str[i];
@@ -798,15 +816,22 @@ int gen_stateless_conf(void)
 	char beacon[] = "WPAand11i";
 	char encryption[] = "TKIPandAESEncryption";
 	char key[130];
-	char real_key_str[130];
-	char ssid[65];
-	char region[5];
+	char tmpkey[130];
+	char ssid[66];
+	char tmpssid[66];
+	char region[5] = {0};
 	int channel = wf_chspec_ctlchan(wf_chspec_aton(nvram_safe_get("wl1_chanspec")));
 	int bw = atoi(nvram_safe_get("wl1_bw"));
 	uint32_t index = 0;
 
 	sprintf(ssid, "%s", nvram_safe_get("wl1_ssid"));
-	sprintf(region, "%s", nvram_safe_get("1:ccode"));
+	memset(tmpssid, 0, sizeof(tmpssid));
+	fix_script_err(ssid, tmpssid);
+	strncpy(ssid, tmpssid, sizeof(ssid));
+
+	sprintf(region, "%s", nvram_safe_get("wl1_country_code"));
+	if(strlen(region) == 0)
+		sprintf(region, "%s", nvram_safe_get("1:ccode"));
 	dbg("[stateless] channel:[%d]\n", channel);
 	dbg("[stateless] bw:[%d]\n", bw);
 
@@ -821,12 +846,14 @@ int gen_stateless_conf(void)
 		strncpy(auth, nvram_safe_get("wlc_auth_mode"), sizeof(auth));
 		strncpy(crypto, nvram_safe_get("wlc_crypto"), sizeof(crypto));
 		strncpy(key, nvram_safe_get("wlc_wpa_psk"), sizeof(key));
-		if(strchr(key, '$') != NULL){
-			fix_script_err(key, real_key_str);
-			strncpy(key, real_key_str, sizeof(key));
-		}
+		memset(tmpkey, 0, sizeof(tmpkey));
+		fix_script_err(key, tmpkey);
+		strncpy(key, tmpkey, sizeof(key));
 
 		strncpy(ssid, nvram_safe_get("wlc_ssid"), sizeof(ssid));
+		memset(tmpssid, 0, sizeof(tmpssid));
+		fix_script_err(ssid, tmpssid);
+		strncpy(ssid, tmpssid, sizeof(ssid));
 		fprintf(fp, "wifi0_SSID=\"%s\"\n", ssid);
 
 		logmessage("start_psta", "ssid=%s, auth=%s, crypto=%s, encryption=%s, key=%s\n", ssid, auth, crypto, encryption, key);
@@ -865,13 +892,15 @@ int gen_stateless_conf(void)
 		strncpy(auth, nvram_safe_get("wl1_auth_mode_x"), sizeof(auth));
 		strncpy(crypto, nvram_safe_get("wl1_crypto"), sizeof(crypto));
 		strncpy(key, nvram_safe_get("wl1_wpa_psk"), sizeof(key));
-		if(strchr(key, '$') != NULL){
-			fix_script_err(key, real_key_str);
-			strncpy(key, real_key_str, sizeof(key));
-		}
+		memset(tmpkey, 0, sizeof(tmpkey));
+		fix_script_err(key, tmpkey);
+		strncpy(key, tmpkey, sizeof(key));
 
 
 		strncpy(ssid, nvram_safe_get("wl1_ssid"), sizeof(ssid));
+		memset(tmpssid, 0, sizeof(tmpssid));
+		fix_script_err(ssid, tmpssid);
+		strncpy(ssid, tmpssid, sizeof(ssid));
 		fprintf(fp, "wifi0_SSID=\"%s\"\n", ssid);
 
 		if(!strcmp(auth, "psk2") && !strcmp(crypto, "aes")){
@@ -902,7 +931,7 @@ int gen_stateless_conf(void)
 		region[l_len] = tolower(region[l_len]);
 	}
 	fprintf(fp, "wifi0_region=%s\n", region);
-	nvram_set("wl1_country_code", nvram_safe_get("1:ccode"));
+	// nvram_set("wl1_country_code", nvram_safe_get("1:ccode"));
 	fprintf(fp, "wifi0_vht=1\n");
 	if(bw==1) fprintf(fp, "wifi0_bw=20\n");
 	else if(bw==2) fprintf(fp, "wifi0_bw=40\n");
@@ -917,10 +946,30 @@ int gen_stateless_conf(void)
 	}else{
 		fprintf(fp, "wifi0_bf=0\n");
 	}
+	if(nvram_get_int("wl1_mumimo") == 1){
+		fprintf(fp, "wifi0_mu=1\n");
+	}else{
+		fprintf(fp, "wifi0_mu=0\n");
+	}
 	fprintf(fp, "wifi0_staticip=1\n");
 	fprintf(fp, "slave_ipaddr=\"192.168.1.111/16\"\n");
 	fprintf(fp, "server_ipaddr=\"%s\"\n", nvram_safe_get("QTN_RPC_SERVER"));
 	fprintf(fp, "client_ipaddr=\"%s\"\n", nvram_safe_get("QTN_RPC_CLIENT"));
+
+	if(nvram_match("wl1.1_lanaccess", "off") && !nvram_match("wl1.1_lanaccess", ""))
+		fprintf(fp, "wifi1_lanaccess=off\n");
+	else
+		fprintf(fp, "wifi1_lanaccess=on\n");
+
+	if(nvram_match("wl1.2_lanaccess", "off") && !nvram_match("wl1.2_lanaccess", ""))
+		fprintf(fp, "wifi2_lanaccess=off\n");
+	else
+		fprintf(fp, "wifi2_lanaccess=on\n");
+
+	if(nvram_match("wl1.3_lanaccess", "off") && !nvram_match("wl1.3_lanaccess", ""))
+		fprintf(fp, "wifi3_lanaccess=off\n");
+	else
+		fprintf(fp, "wifi3_lanaccess=on\n");
 
 	fclose(fp);
 
@@ -938,6 +987,7 @@ int runtime_config_qtn(int unit, int subunit)
 		return -1;
 	}
 	if ( unit == 1 && subunit == -1 ){
+#if 0
 		dbG("Global QTN settings\n");
 		if(nvram_get_int("wl1_itxbf") == 1 || nvram_get_int("wl1_txbf") == 1){
 			dbG("[bf] set_bf_on\n");
@@ -950,6 +1000,7 @@ int runtime_config_qtn(int unit, int subunit)
 			ret = qcsapi_config_update_parameter(WIFINAME, "bf", "0");
 			if (ret < 0) dbG("qcsapi error\n");
 		}
+#endif
 		gen_stateless_conf();
 	}
 	rpc_parse_nvram_from_httpd(unit, subunit);

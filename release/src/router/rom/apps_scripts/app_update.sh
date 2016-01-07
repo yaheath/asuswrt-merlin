@@ -46,7 +46,7 @@ if [ ! -f "$CONF_FILE" ]; then
 fi
 
 link_internet=`nvram get link_internet`
-if [ "$link_internet" != "1" ]; then
+if [ "$link_internet" != "2" ]; then
 	exit 1
 fi
 
@@ -65,7 +65,7 @@ nvram set apps_state_update=1 # UPDATING
 SQ_TEST=`nvram get apps_sq`
 i=0
 while [ $i -lt $row_num ]; do
-	i=$(($i+1))
+	i=$((i+1))
 	list_name=`sed -n $i'p' $TEMP_FILE |awk '{print $1}'`
 	server_name=`sed -n $i'p' $TEMP_FILE |awk '{print $2}'`
 

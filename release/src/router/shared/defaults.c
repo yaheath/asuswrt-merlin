@@ -28,7 +28,13 @@ struct nvram_tuple router_defaults[] = {
 	// NVRAM for restore_defaults: system wide parameters
 	{ "nvramver", RTCONFIG_NVRAM_VER},
 	{ "restore_defaults",	"0"	},	// Set to 0 to not restore defaults on boot
+#ifdef RPAC68U
+	{ "sw_mode", "2" 		}, 	// big switch for different mode
+#elif defined(RTCONFIG_DEFAULT_AP_MODE)
+	{ "sw_mode", "3"		},	// big switch for different mode
+#else
 	{ "sw_mode", "1" 		}, 	// big switch for different mode
+#endif
 	{ "preferred_lang", "EN"	},
 	// NVRAM from init_nvram: system wide parameters accodring to model and mode
 	//{ "wan_ifnames", "" },
@@ -77,7 +83,7 @@ struct nvram_tuple router_defaults[] = {
 	{ "wl_radioids", "", 0 },		/* List of radio IDs */
 #endif
 	{ "wl_ssid", "ASUS", 0 },		/* Service set ID (network name) */
-#ifndef RTAC3200
+#if !defined (RTAC3200) && !defined (RTAC5300)
 	{ "wl1_ssid", "ASUS_5G" },
 #else
 	{ "wl1_ssid", "ASUS_5G-1" },
@@ -250,19 +256,17 @@ struct nvram_tuple router_defaults[] = {
 	{ "wl_plcphdr", "long", 0 },		/* 802.11b PLCP preamble type */
 #ifdef RTCONFIG_RALINK
 	{ "wl_nmode_protection", "auto", 0},	/* 802.11n protection */
-#elif defined(RTCONFIG_QCA)
+#elif defined(RTCONFIG_QCA) || defined(RTCONFIG_BCM_7114)
 	{ "wl_nmode_protection", "auto", 0},	/* 802.11n protection */
 #else
 	{ "wl_gmode", XSTR(GMODE_AUTO), 0 },	/* 54g mode */
 #endif
 	{ "wl_gmode_protection", "auto", 0 },	/* 802.11g RTS/CTS protection (off|auto) */
-#ifdef RTCONFIG_RALINK
-#elif defined(RTCONFIG_QCA)
-#else
+
+#ifdef RTCONFIG_OPTIMIZE_XBOX
 	{ "wl_optimizexbox", "0"},		/* Optimize WiFi packet for Xbox */
 #endif
-	{ "wl_frameburst", "on"},		/* BRCM Frambursting mode (off|on) */
-	{ "wl_wme", "on", 0 },			/* WME mode (off|on|auto) */
+	{ "wl_wme", "auto", 0 },		/* WME mode (off|on|auto) */
 #ifdef RTCONFIG_RALINK
 #elif defined(RTCONFIG_QCA)
 #else
@@ -282,6 +286,9 @@ struct nvram_tuple router_defaults[] = {
 #ifdef RTCONFIG_WL_AUTO_CHANNEL
 	{"AUTO_CHANNEL", "1"},			/*0: real channel; 1: Auto; for RT-N12HP & RT-N14UHP*/
 #endif
+#ifdef RTCONFIG_TCODE
+	{"location_code", ""},			/*0: real channel; 1: Auto; for RT-N12HP & RT-N14UHP*/
+#endif
 #ifdef RTCONFIG_RALINK
 	{ "wl_nband", "2", 0},			/* N-BAND */
 	{ "wl0_nband", "2"},			/* 2.4 GHz */
@@ -292,7 +299,7 @@ struct nvram_tuple router_defaults[] = {
 	{ "wl1_nband", "1"},			/* 5 GHz */
 #else
 	{ "wl_nband", "2", 0},			/* N-BAND */
-#ifdef RTAC3200
+#if defined (RTAC3200) || defined (RTAC5300)
 	{ "wl1_nband", "1"},
 	{ "wl2_nband", "1"},
 #else
@@ -327,24 +334,44 @@ struct nvram_tuple router_defaults[] = {
 #ifdef RTCONFIG_RALINK
 #elif defined(RTCONFIG_QCA)
 #else
+#if defined(RTCONFIG_BCM_7114)
+	{ "wl_ampdu_rtylimit_tid", "5 5 5 5 5 5 5 5", 0 },
+	{ "wl_ampdu_rr_rtylimit_tid", "2 2 2 2 2 2 2 2", 0 },
+#else
 	/* Default AMPDU retry limit per-tid setting */
 	{ "wl_ampdu_rtylimit_tid", "7 7 7 7 7 7 7 7", 0 },
 	/* Default AMPDU regular rate retry limit per-tid setting */
 	{ "wl_ampdu_rr_rtylimit_tid", "3 3 3 3 3 3 3 3", 0 },
+#endif
 	{ "wl_amsdu", "auto", 0 },		/* Default AMSDU setting */
-#if defined (RTCONFIG_BCMARM) && !defined (RTCONFIG_BCM7)
+#if defined (RTCONFIG_BCMARM) && !defined (RTCONFIG_BCM7) && !defined (RTCONFIG_BCM_7114)
 	{ "wl_rx_amsdu_in_ampdu", "auto", 0 },	/* Default RX AMSDU In AMPDU setting */
 #endif
 	{ "wl_obss_coex", "1", 0 },		/* Default OBSS Coexistence setting - OFF */
 #ifdef RTCONFIG_BCMWL6
+#if !defined (RTCONFIG_BCM7) && !defined (RTCONFIG_BCM_7114)
 	{ "wl_ack_ratio", "0"},
+#endif
 	{ "wl_ampdu_mpdu", "0"},
 	{ "wl_ampdu_rts", "1"},
 #ifdef RTCONFIG_BCMARM
+#ifdef RTCONFIG_BCM_7114
+	{ "wl_turbo_qam", "2"},
+#else
 	{ "wl_turbo_qam", "1"},
 #endif
+#ifdef RTCONFIG_BCM_7114
+	{ "wl0_turbo_qam", "2"},
+#else
+	{ "wl0_turbo_qam", "1"},
 #endif
-#endif
+#ifdef RTCONFIG_BCM_7114
+	{ "wl1_turbo_qam", "2"},
+	{ "wl2_turbo_qam", "2"},
+#endif	// BCM_7114
+#endif	// BCMARM
+#endif	// BCMWL6
+#endif	// RALINK
 	/* WPA parameters */
 	{ "wl_auth_mode", "none", 0 },		/* Network authentication mode (radius|none) */
 	{ "wl_wpa_psk", "", 0 },		/* WPA pre-shared key */
@@ -361,7 +388,7 @@ struct nvram_tuple router_defaults[] = {
 	{ "wl_akm", "", 0 },			/* WPA akm list */
 #ifdef RTCONFIG_BCMWL6
 #ifdef MFP
-	{ "wl_mfp", "-1", 0 },			/* Protected Management Frame */
+	{ "wl_mfp", "0", 0 },			/* Protected Management Frame */
 #endif
 	{ "wl_psr_mrpt", "0", 0 },		/* Default to one level repeating mode */
 #endif
@@ -457,10 +484,11 @@ struct nvram_tuple router_defaults[] = {
 // open/shared/psk/wpa/radius
 	{ "wl_wep_x", 			"0"	},
 // WEP data encryption 0, 1, 2 : disabled/5/13
-	{ "wl_timesched", 		"1"	},
+	{ "wl_timesched", 		"0"	},
 	{ "wl_radio_date_x",	"1111111"	},
 	{ "wl_radio_time_x",	"00002359"	},
 	{ "wl_radio_time2_x",	"00002359"	},
+	{ "wl_sched",		"000000"	},
 	{ "wl_phrase_x",	""		},	// Passphrase	// Add
 	{ "wl_lanaccess", 	"off"		},
 	{ "wl_expire", 		"0"		},
@@ -468,7 +496,7 @@ struct nvram_tuple router_defaults[] = {
 	{ "wl_txpower",		"100"		},
 
 #if defined (RTCONFIG_RALINK) || defined (RTCONFIG_BCMWL6)
-#if defined(RTAC53U)
+#if defined(RTAC53U) || defined(RTAC1200G) || defined(RTAC1200GP)
 	/* RT-AC53U disable txbf by default */
 	{ "wl_txbf", "0" },
 #else
@@ -483,8 +511,57 @@ struct nvram_tuple router_defaults[] = {
 	{ "wl_itxbf", "1" },
 #endif
 #endif
+#ifdef RTCONFIG_QTN
+	{ "wl_mumimo", "0" },
+#endif
+
+#if defined(RTCONFIG_QCA)
+#if defined(RTCONFIG_WIFI_QCA9990_QCA9990) || defined(RTCONFIG_WIFI_QCA9994_QCA9994)
+	{ "wl_turbo_qam", "0"},
+	{ "wl_turbo_qam_brcm_intop", "1"},
+	{ "wl_txbf", "1" },
+	{ "wl_mumimo", "0" },
+#endif
+#endif
 
 #if defined (RTCONFIG_WIRELESSREPEATER) || defined (RTCONFIG_PROXYSTA)
+#if defined (RTCONFIG_CONCURRENTREPEATER)
+	/* 2.4GHz */
+	{ "wlc0_list",			""	},
+	{ "wlc0_ssid",			""	},
+	{ "wlc0_wep",			""	},
+	{ "wlc0_key",			""	},
+	{ "wlc0_wep_key",		""	},
+	{ "wlc0_auth_mode",		""	},
+	{ "wlc0_crypto",		""	},
+	{ "wlc0_wpa_psk",		""	},
+	{ "wlc0_state",			"0"	},
+	{ "wlc0_sbstate",		"0"	},
+	{ "wlc0_scan_state",		"0"	},
+	{ "wlc0_mode",			"0"	},
+	{ "wlc0_ure_ssid",		""	},
+	/* 5GHz */
+	{ "wlc1_list",			""	},
+	{ "wlc1_ssid",			""	},
+	{ "wlc1_wep",			""	},
+	{ "wlc1_key",			""	},
+	{ "wlc1_wep_key",		""	},
+	{ "wlc1_auth_mode",		""	},
+	{ "wlc1_crypto",		""	},
+	{ "wlc1_wpa_psk",		""	},
+	{ "wlc1_state", 		"0"	},
+	{ "wlc1_sbstate", 		"0" 	},
+	{ "wlc1_scan_state", "0"},
+	{ "wlc1_mode",			"0"	},
+	{ "wlc1_ure_ssid",		""	},
+#ifndef RTCONFIG_BCMWL6
+	{ "wlc0_nbw_cap",		""	},
+	{ "wlc1_nbw_cap",		""	},
+#else
+	{ "wlc0_bw_cap",		""	},
+	{ "wlc1_bw_cap",		""	},
+#endif
+#else
 	{ "wlc_list",			""	},
 	{ "wlc_band",			""	},
 	{ "wlc_ssid", 			"8f3610e3c9feabed953a6"	},
@@ -501,7 +578,8 @@ struct nvram_tuple router_defaults[] = {
 #endif
 	{ "wlc_ure_ssid",		""	},
 #endif
-
+	{ "wlc_express",		"0"	},	/* 0: disabled, 1: 2.4GHz, 2: 5GHz */
+#endif
 #ifdef RTCONFIG_PROXYSTA
 	{ "wlc_psta",			"0"	},	/* 0: disabled, 1: Proxy STA, 2: Proxy STA Repeater */
 	{ "wlc_band_ex",		""	},	/* another psta band */
@@ -533,8 +611,6 @@ struct nvram_tuple router_defaults[] = {
 //	{ "wl1_HT_TxStream", "2" }, // move to init_nvram for model dep.
 //	{ "wl1_HT_RxStream", "3" }, // move to init_nvram for model dep.
 	{ "wl_HT_STBC", "1" },
-	{ "wl_McastPhyMode", "0" },
-	{ "wl_McastMcs", "0" },
 	// the following for ralink 5g only
 	{ "wl_IEEE80211H", "0" },
 	{ "wl_CSPeriod", "10" },
@@ -542,6 +618,11 @@ struct nvram_tuple router_defaults[] = {
 	{ "wl_CarrierDetect", "0" },
 	{ "wl_ChannelGeography", "2" },
 	{ "wl_txbf_en", "0" },
+#endif
+
+#if defined(RTCONFIG_QCA)
+	{ "wl_HT_GI", "1"},			/* Short-GI */
+	{ "wl_HT_STBC", "1" },			/* STBC */
 #endif
 
 #ifdef RTCONFIG_EMF
@@ -559,8 +640,6 @@ struct nvram_tuple router_defaults[] = {
 	{ "wl_wmf_mdata_sendup", "0", 0 },	/* Disable Sending Multicast Data to host (default) */
 #ifdef RTCONFIG_BCMARM
 	{ "wl_wmf_ucast_upnp", "0", 0 },	/* Disable Converting upnp to ucast (default) */
-#endif
-#ifndef RTCONFIG_BCM7
 	{ "wl_wmf_igmpq_filter", "0", 0 },	/* Disable igmp query filter */
 #endif
 #endif
@@ -615,20 +694,38 @@ struct nvram_tuple router_defaults[] = {
 #endif
 
 	/* Tx Beamforming */
+#ifdef RTCONFIG_BCM_7114
+	{ "wl_txbf_bfr_cap", "2", 0 },
+	{ "wl_txbf_bfe_cap", "2", 0 },
+#else
 	{ "wl_txbf_bfr_cap", "1", 0 },
 	{ "wl_txbf_bfe_cap", "1", 0 },
-#ifdef RTCONFIG_BCM7
-	{ "wl_txbf_imp", "1", 0 },
 #endif
-#ifndef RTCONFIG_BCMARM
+#ifdef RTCONFIG_BCMARM
+#ifndef RTCONFIG_WIFILOGO
+	{ "wl_txbf_imp", "1", 0 },
+#else
+	{ "wl_txbf_imp", "0", 0 },
+
+#endif
+#ifdef RTCONFIG_BCM_7114
+	{ "wl_mu_features", "0", 0},
+#endif
+#else
 	{ "wl_txbf_timer", "25", 0 },
 #endif
 
+#if defined(RTAC5300)
+	{ "stop_gmac3", "0", 0},
+#endif
+#if defined(RTAC88U) || defined(RTAC3100)
+	{ "stop_gmac3", "0", 0},
+#endif
 	/* acsd setting */
 	{ "wl_acs_fcs_mode", "0", 0 },		/* acsd disable FCS mode */
 	{ "wl_dcs_csa_unicast", "0", 0 },	/* disable unicast csa */
 	{ "wl_acs_excl_chans", "", 0 },		/* acsd exclude chanspec list */
-#ifdef RTCONFIG_BCM7
+#if defined(RTCONFIG_BCM7) || defined(RTCONFIG_BCM_7114)
 	{ "wl_acs_dfs", "2", 0 },		/* acsd fcs disable init DFS chan */
 #else
 	{ "wl_acs_dfs", "0", 0 },		/* acsd fcs disable init DFS chan */
@@ -647,8 +744,20 @@ struct nvram_tuple router_defaults[] = {
 	{ "wl_intfer_cnt", "3", 0 },		/* acsd fcs sample cnt */
 	{ "wl_intfer_txfail", "5", 0 },		/* fcs non-TCP txfail threshold setting */
 	{ "wl_intfer_tcptxfail", "5", 0 },	/* fcs TCP txfail threshold setting */
+#ifdef RTCONFIG_BCM_7114
+        { "wl_acs_bgdfs_enab", "1", 0 },        /* acsd BGDFS toggle */
+        { "wl_acs_bgdfs_ahead", "1", 0 },       /* acsd BGDFS ahead toggle */
+        { "wl_acs_bgdfs_idle_interval", "3600", 0 },     /* acsd traffic idle time before BGDFS */
+        { "wl_acs_bgdfs_idle_frames_thld", "36000", 0 }, /* acsd max frames for idle */
+        { "wl_acs_bgdfs_avoid_on_far_sta", "1", 0 },    /* bgdfs avoided by default on far sta */
+        { "wl_acs_far_sta_rssi", "-75", 0 },    /* rssi threshold for far sta */
+#endif
 
+#ifdef RTCONFIG_BCM10
+	{ "wl_pspretend_retry_limit", "5", 0 }, /* Enable PsPretend */
+#else
 	{ "wl_pspretend_retry_limit", "0", 0 }, /* Disable PsPretend */
+#endif
 #ifndef RTCONFIG_BCM7
 	{ "wl_pspretend_threshold", "0", 0 },	/* Disable PsPretend Threshold */
 #else
@@ -664,34 +773,76 @@ struct nvram_tuple router_defaults[] = {
 	{ "smart_connect_x", "0", 0 },		/* 0:Disable, 1:Tri-band, 2:5GHz */
 #if 0
 	{ "bsd_msglevel", "0x000010", 0 },	/* BSD_DEBUG_STEER */
+	{ "bsd_dbg", "1"},
 #endif
 #ifdef RTAC3200
 	{"bsd_ifnames", "eth2 eth1 eth3", 0 },
-	{"wl0_bsd_steering_policy", "0 5 3 -58 0 110 0x22", 0 },
-	{"wl1_bsd_steering_policy", "80 5 3 0 54 433 0x20", 0 },
-	{"wl2_bsd_steering_policy", "0 5 3 0 433 0 0x20", 0 },
-	{"wl0_bsd_sta_select_policy", "4 -58 0 110 0 0 -1 0 0 0 0x122", 0 },
-	{"wl1_bsd_sta_select_policy", "4 -76 0 433 0 0 1 0 0 0 0x020", 0 },
-	{"wl2_bsd_sta_select_policy", "4 0 433 0 0 0 1 0 0 0 0x020", 0 },
+	{"wl0_bsd_steering_policy", "0 5 3 -52 0 110 0x22", 0 },
+	{"wl1_bsd_steering_policy", "80 5 3 -82 0 0 0x20", 0 },
+	{"wl2_bsd_steering_policy", "0 5 3 -82 0 0 0x28", 0 },
+	{"wl0_bsd_sta_select_policy", "4 -52 0 110 0 1 1 0 0 0 0x122", 0 },
+	{"wl1_bsd_sta_select_policy", "4 -82 0 0 0 1 1 0 0 0 0x24", 0 },
+	{"wl2_bsd_sta_select_policy", "4 -82 0 0 0 1 1 0 0 0 0x28", 0 },
 	{"wl0_bsd_if_select_policy", "eth3 eth1", 0 },
-	{"wl1_bsd_if_select_policy", "eth3 eth2", 0 },
+	{"wl1_bsd_if_select_policy", "eth2 eth3", 0 },
+	{"wl2_bsd_if_select_policy", "eth2 eth1", 0 },
+	{"wl0_bsd_if_qualify_policy", "0 0x0", 0 },
+	{"wl1_bsd_if_qualify_policy", "60 0x0", 0 },
+	{"wl2_bsd_if_qualify_policy", "0 0x4", 0 },
+	{"bsd_bounce_detect", "180 1 3600", 0 },
+	{"bsd_aclist_timeout", "1", 0},
+#elif RTAC5300
+	// Tri-Band
+	{"bsd_ifnames", "eth1 eth2 eth3", 0 },
+	{"wl0_bsd_steering_policy", "0 5 3 -52 0 110 0x22", 0 },
+	{"wl1_bsd_steering_policy", "80 5 3 -82 0 0 0x20", 0 },
+	{"wl2_bsd_steering_policy", "0 5 3 -82 0 0 0x28", 0 },
+	{"wl0_bsd_sta_select_policy", "4 -52 0 110 0 1 1 0 0 0 0x122", 0 },
+	{"wl1_bsd_sta_select_policy", "4 -82 0 0 0 1 1 0 0 0 0x24", 0 },
+	{"wl2_bsd_sta_select_policy", "4 -82 0 0 0 1 1 0 0 0 0x28", 0 },
+	{"wl0_bsd_if_select_policy", "eth3 eth2", 0 },
+	{"wl1_bsd_if_select_policy", "eth1 eth3", 0 },
 	{"wl2_bsd_if_select_policy", "eth1 eth2", 0 },
 	{"wl0_bsd_if_qualify_policy", "0 0x0", 0 },
 	{"wl1_bsd_if_qualify_policy", "60 0x0", 0 },
-	{"wl2_bsd_if_qualify_policy", "0 0x0", 0 },
+	{"wl2_bsd_if_qualify_policy", "0 0x4", 0 },
 	{"bsd_bounce_detect", "180 1 3600", 0 },
+	{"bsd_aclist_timeout", "1", 0},
+	// 5GHz Only
+	{"bsd_ifnames_x", "eth2 eth3", 0 },
+	{"wl1_bsd_steering_policy_x", "80 5 3 0 0 600 0x20", 0 },
+	{"wl2_bsd_steering_policy_x", "0 5 3 0 700 0 0x28", 0 },
+	{"wl1_bsd_sta_select_policy_x", "4 0 0 500 0 1 1 0 0 0 0x60", 0 },
+	{"wl2_bsd_sta_select_policy_x", "4 0 900 0 0 1 1 0 0 0 0x68", 0 },
+	{"wl1_bsd_if_select_policy_x", "eth3", 0 },
+	{"wl2_bsd_if_select_policy_x", "eth2", 0 },
+	{"wl1_bsd_if_qualify_policy_x", "60 0x0", 0 },
+	{"wl2_bsd_if_qualify_policy_x", "0 0x4", 0 },
+	{"bsd_bounce_detect_x", "180 1 3600", 0 },
+	{"bsd_aclist_timeout", "3", 0},
 #endif
+
 	{"bsd_scheme", "2", 0 },
+#endif
+#if defined (RTCONFIG_BCMARM) && !defined (RTCONFIG_BCM7) && !defined (RTCONFIG_BCM_7114)
+	{ "acsd_foreground", "0", 0 },		/* daemon foreground mode control */
+	{ "nas_foreground", "0", 0 },		/* daemon foreground mode control */
+	{ "eapd_foreground", "0", 0 },		/* daemon foreground mode control */
+	{ "wl_acs_boot_only", "0", 0 },		/* enable acsd full operation */
 #endif
 #ifdef BCM_SSD
 	{ "ssd_enable", "0", 0 },		/* Disable SSID Steer Daemon */
 	{ "wl_ssd_type", "0", 0 },		/* default ssd_type "disabled" */
 #endif
-#ifdef RTCONFIG_BCM7
+#if defined(RTCONFIG_BCM7) || defined(RTCONFIG_BCM_7114)
 	{ "wl_dfs_pref", "" },			/* DFS Preferred channel value */
 	{ "wl_probresp_mf", "0", 0 },		/* MAC filter based probe response */
 	{ "wl_probresp_sw", "1", 0 },		/* SW probe response */
 	{ "wl_vht_features", "-1", 0 }, 	/* VHT features */
+#endif
+#ifdef RTCONFIG_BCM_7114
+	{ "wl_obss_dyn_bw", "0", 0},		/* Dynamic BWSW disable defaults */
+	{ "wl_tpc_db", "0", 0},			/* TPC Mitigation (db) */
 #endif
 #endif
 
@@ -700,6 +851,7 @@ struct nvram_tuple router_defaults[] = {
 	{ "ct_tcp_timeout",		""},
 	{ "ct_udp_timeout",		"30 180"},
 	{ "ct_timeout",			""},
+	{ "ct_max",			"300000"}, //All the models we support would default to this value
 
 #ifdef RTCONFIG_RALINK
 #elif defined(RTCONFIG_QCA)
@@ -729,7 +881,7 @@ struct nvram_tuple router_defaults[] = {
 	{ "gro_disable",		"0"		},
 #endif
 #endif
-#if defined(RTCONFIG_LED_BTN)
+#if defined(RTCONFIG_LED_BTN) || defined(RTCONFIG_WPS_ALLLED_BTN)
 	{ "AllLED",		"1"		},
 #endif
 //#ifdef RTCONFIG_BCMWL6
@@ -743,9 +895,18 @@ struct nvram_tuple router_defaults[] = {
 
 	// LAN TCP/IP parameters
 	{ "lan_unit",			"-1"		},
+#if defined(RTCONFIG_DEFAULT_AP_MODE)
+	{ "lan_proto",			"dhcp"	},	// DHCP server [static|dhcp]	//Barry add 2004 09 16
+#else
 	{ "lan_proto",			"static"	},	// DHCP server [static|dhcp]	//Barry add 2004 09 16
+#endif
+#if defined(RTN300) || defined(RTAC1200G)
+	{ "lan_ipaddr",			"192.168.50.1"	},	// LAN IP address
+	{ "lan_ipaddr_rt",		"192.168.50.1"	},
+#else
 	{ "lan_ipaddr",			"192.168.1.1"	},	// LAN IP address
 	{ "lan_ipaddr_rt",		"192.168.1.1"	},
+#endif
 	{ "lan_netmask",		"255.255.255.0"	},	// LAN netmask
 	{ "lan_netmask_rt",		"255.255.255.0" },
 	{ "lan_gateway",		"0.0.0.0"	},	// LAN Gateway
@@ -754,9 +915,16 @@ struct nvram_tuple router_defaults[] = {
 	{ "lan_domain",			""		},	// LAN domain name
 	{ "lan_lease",			"86400"		},	// LAN lease time in seconds
 	{ "lan_stp",			"1"		},	// LAN spanning tree protocol
+#ifdef RTCONFIG_LACP
+	{ "lacp_enabled",			"0"		},	// LACP enable or not
+#endif
 	{ "lan_route",			""		},	// Static routes (ipaddr:netmask:gateway:metric:ifname ...)
 
+#if defined(RTCONFIG_DEFAULT_AP_MODE)
+	{ "lan_dnsenable_x", "1"},
+#else
 	{ "lan_dnsenable_x", "0"},
+#endif
 	{ "lan_dns1_x", ""},					/* x.x.x.x x.x.x.x ... */
 	{ "lan_dns2_x", ""},
 	{ "lan_dns_fwd_local", "0"},		/* Forward queries for local domain to upstream DNS server */
@@ -784,17 +952,27 @@ struct nvram_tuple router_defaults[] = {
 	// NVRAM for start_dhcpd
 	// DHCP server parameters
 	{ "dhcp_enable_x", "1" },
+#if defined(RTN300) || defined(RTAC1200G)
+	{ "dhcp_start", "192.168.50.2"},
+	{ "dhcp_end", "192.168.50.254"},
+#else
 	{ "dhcp_start", "192.168.1.2"},
 	{ "dhcp_end", "192.168.1.254"},
+#endif
 	{ "dhcp_lease", "86400" },
 	{ "dhcp_gateway_x", "" },
 	{ "dhcp_dns1_x", "" },
+	{ "dhcp_dns2_x", "" },
 	{ "dhcp_wins_x", "" },
 	{ "dhcp_static_x", "0"},
 	{ "dhcp_staticlist", ""},
 	//{ "dhcpd_lmax", "253"},
 	{ "dhcpc_mode", "1"},
+#ifdef RTCONFIG_DHCP_OVERRIDE
+	{ "dnsqmode", "2"},
+#endif
 	{ "dhcpd_querylog", "1"},
+	{ "dhcpd_dns_router", "1"},
 
 	// NVRAM for start_dhcpd
 	// Guest DHCP server parameters
@@ -825,7 +1003,7 @@ struct nvram_tuple router_defaults[] = {
 
 	// NVRAM for switch control
 //#ifdef RTCONFIG_SWITCH_CONTROL_8367
-#ifdef RTCONFIG_RALINK
+#if defined(RTCONFIG_RALINK) || defined(RTCONFIG_SWITCH_RTL8370M_PHY_QCA8033_X2)
 	{ "switch_ctrlrate_unknown_unicast", "20" },
 	{ "switch_ctrlrate_unknown_multicast", "20" },
 	{ "switch_ctrlrate_multicast", "20" },
@@ -841,8 +1019,10 @@ struct nvram_tuple router_defaults[] = {
 #endif
 #ifdef RTCONFIG_QCA
 	{ "qca_sfe", "1"},
-	{ "wl_wds_vht", 	"1"	},
+#if defined(RTCONFIG_SOC_QCA9557)
 	{ "traffic_5g", "0"},
+#endif
+	{ "wl_wds_vht", 	"1"	},
 #endif
 
 	// NVRAM for start_wan
@@ -892,8 +1072,9 @@ struct nvram_tuple router_defaults[] = {
 #ifdef RTCONFIG_DSL
 	{ "wan_pppoe_auth", "" },
 #endif
-	/* Misc WAN parameters */
+	{ "wan_ppp_echo", "1"},
 
+	/* Misc WAN parameters */
 	{ "wan_desc", ""},		/* WAN connection description */
 	{ "wan_upnp_enable", "1"}, 	// upnp igd
 	{ "wan_pppoe_relay", "0" },
@@ -916,9 +1097,9 @@ struct nvram_tuple router_defaults[] = {
 	// miniupnpd - PCP-related values
 	{ "upnp_min_lifetime", "120" },
 	{ "upnp_max_lifetime", "86400" },
-
+	{ "upnp_pinhole_enable", "0" },
 #ifdef RTCONFIG_DUALWAN // RTCONFIG_DUALWAN
-#if defined(RT4GAC55U)
+#ifdef RTCONFIG_INTERNAL_GOBI
 	{ "wans_mode", "lb" },
 #else
 	{ "wans_mode", "fo" }, 		// off/failover/failback/loadbance(off/fo/fb/lb)
@@ -940,7 +1121,11 @@ struct nvram_tuple router_defaults[] = {
 
 	{ "wandog_enable", "0" },
 	{ "wandog_target", "" },
+#ifdef RTCONFIG_INTERNAL_GOBI
+	{ "wandog_interval", "3" }, // Be the same with lteled's interval.
+#else
 	{ "wandog_interval", "5" },
+#endif
 	{ "wandog_maxfail", "12" },
 	{ "wandog_delay", "0" },
 	{ "wandog_fb_count", "4" },
@@ -967,12 +1152,13 @@ struct nvram_tuple router_defaults[] = {
 	{ "dslx_diag_log_path", "" },
 #ifdef RTCONFIG_VDSL
 	{ "dslx_vdsl_bitswap", "1" },
-	{ "dslx_vdsl_vectoring", "0" },
+	{ "dslx_vdsl_vectoring", "1" },
 	{ "dslx_vdsl_nonstd_vectoring", "0" },
 	{ "dslx_vdsl_target_snrm", "32767" },
 	{ "dslx_vdsl_tx_gain_off", "32767" },
 	{ "dslx_vdsl_rx_agc", "65535" },
 	{ "dslx_vdsl_upbo", "auto" },
+	{ "dslx_vdsl_esnp", "0" }, //Enhanced Sudden Noise Protection
 	{ "dslx_vdsl_profile", "0" },
 	{ "dslx_rmvlan", "0" },
 #endif
@@ -1022,9 +1208,10 @@ struct nvram_tuple router_defaults[] = {
 	{ "dsl_pcr", "0"},
 	{ "dsl_scr", "0"},
 	{ "dsl_mbs", "0"},
-#ifdef RTCONFIG_VDSL
+#ifdef RTCONFIG_DSL_TCLINUX
 	{ "dsl_dot1q", "0"},
 	{ "dsl_vid", ""},
+	{ "dsl_dot1p", ""},
 #endif
 
 // those PVC need to init first so that QIS internet/IPTV PVC setting could write to NVRAM
@@ -1037,6 +1224,11 @@ struct nvram_tuple router_defaults[] = {
 	{ "dsl0_pcr", ""},
 	{ "dsl0_scr", ""},
 	{ "dsl0_mbs", ""},
+#ifdef RTCONFIG_DSL_TCLINUX
+	{ "dsl0_dot1q", "0"},
+	{ "dsl0_vid", ""},
+	{ "dsl0_dot1p", ""},
+#endif
 //
 	{ "dsl1_enable", "0"},
 	{ "dsl1_vpi", ""},
@@ -1047,6 +1239,11 @@ struct nvram_tuple router_defaults[] = {
 	{ "dsl1_pcr", ""},
 	{ "dsl1_scr", ""},
 	{ "dsl1_mbs", ""},
+#ifdef RTCONFIG_DSL_TCLINUX
+	{ "dsl1_dot1q", "0"},
+	{ "dsl1_vid", ""},
+	{ "dsl1_dot1p", ""},
+#endif
 //
 	{ "dsl2_enable", "0"},
 	{ "dsl2_vpi", ""},
@@ -1057,6 +1254,11 @@ struct nvram_tuple router_defaults[] = {
 	{ "dsl2_pcr", ""},
 	{ "dsl2_scr", ""},
 	{ "dsl2_mbs", ""},
+#ifdef RTCONFIG_DSL_TCLINUX
+	{ "dsl2_dot1q", "0"},
+	{ "dsl2_vid", ""},
+	{ "dsl2_dot1p", ""},
+#endif
 //
 	{ "dsl3_enable", "0"},
 	{ "dsl3_vpi", ""},
@@ -1067,6 +1269,11 @@ struct nvram_tuple router_defaults[] = {
 	{ "dsl3_pcr", ""},
 	{ "dsl3_scr", ""},
 	{ "dsl3_mbs", ""},
+#ifdef RTCONFIG_DSL_TCLINUX
+	{ "dsl3_dot1q", "0"},
+	{ "dsl3_vid", ""},
+	{ "dsl3_dot1p", ""},
+#endif
 //
 	{ "dsl4_enable", "0"},
 	{ "dsl4_vpi", ""},
@@ -1077,6 +1284,11 @@ struct nvram_tuple router_defaults[] = {
 	{ "dsl4_pcr", ""},
 	{ "dsl4_scr", ""},
 	{ "dsl4_mbs", ""},
+#ifdef RTCONFIG_DSL_TCLINUX
+	{ "dsl4_dot1q", "0"},
+	{ "dsl4_vid", ""},
+	{ "dsl4_dot1p", ""},
+#endif
 //
 	{ "dsl5_enable", "0"},
 	{ "dsl5_vpi", ""},
@@ -1087,6 +1299,11 @@ struct nvram_tuple router_defaults[] = {
 	{ "dsl5_pcr", ""},
 	{ "dsl5_scr", ""},
 	{ "dsl5_mbs", ""},
+#ifdef RTCONFIG_DSL_TCLINUX
+	{ "dsl6_dot1q", "0"},
+	{ "dsl6_vid", ""},
+	{ "dsl6_dot1p", ""},
+#endif
 //
 	{ "dsl6_enable", "0"},
 	{ "dsl6_vpi", ""},
@@ -1097,6 +1314,11 @@ struct nvram_tuple router_defaults[] = {
 	{ "dsl6_pcr", ""},
 	{ "dsl6_scr", ""},
 	{ "dsl6_mbs", ""},
+#ifdef RTCONFIG_DSL_TCLINUX
+	{ "dsl6_dot1q", "0"},
+	{ "dsl6_vid", ""},
+	{ "dsl6_dot1p", ""},
+#endif
 //
 	{ "dsl7_enable", "0"},
 	{ "dsl7_vpi", ""},
@@ -1107,6 +1329,11 @@ struct nvram_tuple router_defaults[] = {
 	{ "dsl7_pcr", ""},
 	{ "dsl7_scr", ""},
 	{ "dsl7_mbs", ""},
+#ifdef RTCONFIG_DSL_TCLINUX
+	{ "dsl7_dot1q", "0"},
+	{ "dsl7_vid", ""},
+	{ "dsl7_dot1p", ""},
+#endif
 // number of PVC , program generated
 	{ "dslx_config_num", "0"},
 // for debug , program generated
@@ -1117,34 +1344,42 @@ struct nvram_tuple router_defaults[] = {
 	{ "dsl8_proto", ""},
 	{ "dsl8_dot1q", "0"},
 	{ "dsl8_vid", ""},
+	{ "dsl8_dot1p", ""},
 	{ "dsl8.1_enable", "0"},
 	{ "dsl8.1_proto", ""},
 	{ "dsl8.1_dot1q", "0"},
 	{ "dsl8.1_vid", ""},
+	{ "dsl8.1_dot1p", ""},
 	{ "dsl8.2_enable", "0"},
 	{ "dsl8.2_proto", ""},
 	{ "dsl8.2_dot1q", "0"},
 	{ "dsl8.2_vid", ""},
+	{ "dsl8.2_dot1p", ""},
 	{ "dsl8.3_enable", "0"},
 	{ "dsl8.3_proto", ""},
 	{ "dsl8.3_dot1q", "0"},
 	{ "dsl8.3_vid", ""},
+	{ "dsl8.3_dot1p", ""},
 	{ "dsl8.4_enable", "0"},
 	{ "dsl8.4_proto", ""},
 	{ "dsl8.4_dot1q", "0"},
 	{ "dsl8.4_vid", ""},
+	{ "dsl8.4_dot1p", ""},
 	{ "dsl8.5_enable", "0"},
 	{ "dsl8.5_proto", ""},
 	{ "dsl8.5_dot1q", "0"},
 	{ "dsl8.5_vid", ""},
+	{ "dsl8.5_dot1p", ""},
 	{ "dsl8.6_enable", "0"},
 	{ "dsl8.6_proto", ""},
 	{ "dsl8.6_dot1q", "0"},
 	{ "dsl8.6_vid", ""},
+	{ "dsl8.6_dot1p", ""},
 	{ "dsl8.7_enable", "0"},
 	{ "dsl8.7_proto", ""},
 	{ "dsl8.7_dot1q", "0"},
 	{ "dsl8.7_vid", ""},
+	{ "dsl8.7_dot1p", ""},
 //
 	{ "dsl9_enable", "0"},
 	{ "dsl9_proto", ""},
@@ -1163,9 +1398,9 @@ struct nvram_tuple router_defaults[] = {
 	{ "qos_irates",	"100,100,100,100,100,0,0,0,0,0"},
 	{ "qos_enable",			"0"				}, // 0: off, 1: on
 #ifdef RTCONFIG_BWDPI
-	{ "qos_type",			"1"				}, // 0: Traditional, 1: Intelligence.
+	{ "qos_type",			"1"				}, // 0: Traditional, 1: Adaptive, 2 : bandwidth limiter
 #else
-	{ "qos_type",			"0"				}, // 0: Traditional, 1: Intelligence.
+	{ "qos_type",			"0"				}, // 0: Traditional, 1: Adaptive, 2 : bandwidth limiter
 #endif
 	{ "qos_method",			"0"				},
 	{ "qos_sticky",			"1"				},
@@ -1181,6 +1416,7 @@ struct nvram_tuple router_defaults[] = {
 	{ "qos_burst0",			""				},
 	{ "qos_burst1",			""				},
 	{ "qos_default",		"3"				},
+	{ "qos_bw_rulelist",		""				},
 
 	// TriggerList
 	{ "autofw_enable_x", "0" },
@@ -1210,7 +1446,7 @@ struct nvram_tuple router_defaults[] = {
 
 	// NVRAM for start_firewall
 	// Firewall
-#if defined (RTCONFIG_PARENTALCTRL) || defined(RTCONFIG_OLD_PARENTALCTRL)
+#ifdef RTCONFIG_PARENTALCTRL
 	{"MULTIFILTER_ALL", "0"},
 	{"MULTIFILTER_ENABLE", "" },
 	{"MULTIFILTER_MAC", "" },
@@ -1230,6 +1466,7 @@ struct nvram_tuple router_defaults[] = {
 	{ "wrs_mals_enable", "0" },
 	{ "wrs_adblock_stream", "0" },
 	{ "wrs_adblock_popup", "0" },
+	{ "wrs_mail_bit", "6" },		// alert mail option, default enable : VP + CC
 	{ "bwdpi_db_enable", "0" },		// traffic statistics switch
 	{ "bwdpi_db_type", "0" },		// 0: flash, 1: USB / HDD, 2: cloud
 	{ "bwdpi_db_path", "" },		// database path
@@ -1237,10 +1474,10 @@ struct nvram_tuple router_defaults[] = {
 	{ "bwdpi_rsa_check", "0" },		// signature update check
 	{ "bwdpi_alive", "10" },		// check dpi engine alive timeout
 	{ "bwdpi_app_rulelist", "9,20<8<4<0,5,6,15,17<13,24<1,3,14<7,10,11,21,23<<" }, // default APP priority of QoS
-	{ "bwdpi_test", "2" },			// backup plan : bwdpi_test=2
 	{ "bwdpi_sig_ver", "" },		// dpi engine signature version
 	{ "TM_EULA", "0"},			// EULA of Trend Micro
 	{ "apps_analysis", "0"},		// Apps Analysis in Adaptive QoS Live
+	{ "bwdpi_wh_enable", "0" },		// web history
 #endif
 #endif	/* RTCONFIG_PARENTALCTRL */
 #ifdef RTCONFIG_YANDEXDNS
@@ -1255,6 +1492,9 @@ struct nvram_tuple router_defaults[] = {
 	{ "dnsfilter_custom1", "8.8.8.8"},	/* User-defined DNS filter 1 */
 	{ "dnsfilter_custom2", "8.8.8.8"},     /* User-defined DNS filter 2 */
 	{ "dnsfilter_custom3", "8.8.8.8"},     /* User-defined DNS filter 3 */
+#endif
+#ifdef RTCONFIG_DNSSEC
+	{ "dnssec_enable", "0" },
 #endif
 	{ "fw_enable_x", "1" },
 	{ "fw_dos_x", "0" },
@@ -1289,11 +1529,6 @@ struct nvram_tuple router_defaults[] = {
 	{ "keyword_time_x", "00002359"},
 	{ "keyword_rulelist", ""},
 
-	// MFList
-	{ "macfilter_enable_x", "0"},
-	{ "macfilter_num_x", "0"},
-	{ "macfilter_rulelist", ""},
-
 	// LWFilterListi
 	{ "fw_lw_enable_x", "0"},
 	{ "filter_lw_date_x", "1111111"},
@@ -1306,7 +1541,7 @@ struct nvram_tuple router_defaults[] = {
 	// NVRAM for start_usb
 	{ "usb_enable", "1"},
 #ifdef RTCONFIG_USB_XHCI
-#ifdef RTAC87U
+#if defined(RTAC87U) || defined(DSL_AC68U)
 	{ "usb_usb3", "1"},
 #else
 	{ "usb_usb3", "0"},
@@ -1338,7 +1573,7 @@ struct nvram_tuple router_defaults[] = {
 	// remain default setting control as tomato
 	{ "usb_enable", "1"},
 	{ "usb_uhci", "0"},
-#ifdef RT4GAC55U
+#ifdef RTCONFIG_INTERNAL_GOBI
 	{ "usb_ohci", "0"},
 	{ "usb_gobi", "1"},
 #else
@@ -1384,6 +1619,7 @@ struct nvram_tuple router_defaults[] = {
 	{ "smbd_wanac", "0"},
 	{ "smbd_simpler_naming", "0"},
 	{ "smbd_enable_smb2", "0"},
+	{ "enable_samba_tuxera", "0"},
 
 #ifdef RTCONFIG_NFS
 	{ "nfsd_enable", "0"},
@@ -1396,9 +1632,10 @@ struct nvram_tuple router_defaults[] = {
 	{ "log_size", "256"},
 	{ "log_level", "7" },		/* <  LOG_DEBUG */
 	{ "console_loglevel", "5"},	/* <  KERN_INFO */
+	{ "message_loglevel", "5"},	/* KERN_INFO */
 
 #if defined(RTCONFIG_JFFS2) || defined(RTCONFIG_BRCM_NAND_JFFS2)
-	{ "jffs2_on", "1" },
+	{ "jffs2_enable", "1" },
 	{ "jffs2_scripts", "0" },
 	{ "jffs2_exec", "" },
 	{ "jffs2_format", "0" },
@@ -1421,6 +1658,11 @@ struct nvram_tuple router_defaults[] = {
 	{ "st_samba_workgroup", "WORKGROUP"},
 	{ "ftp_lang", "EN" },
 	{ "ftp_wanac", "0"},
+
+#ifdef RTCONFIG_REBOOT_SCHEDULE
+	{ "reboot_schedule_enable", "0", 0},
+	{ "reboot_schedule", "00000000000", 0},
+#endif
 
 //#ifdef RTCONFIG_WEBDAV
 	{ "enable_webdav", "0"}, // 0: Disable, 1: enable
@@ -1535,7 +1777,7 @@ struct nvram_tuple router_defaults[] = {
 	{ "http_passwd", "admin" },
 	{ "http_enable", "0"}, // 0: http, 1: https, 2: both
 	{ "http_client", "0"},
-	{ "http_clientlist", "0"},
+	{ "http_clientlist", ""},
 	{ "http_autologout", "30"},
 	{ "custom_clientlist", ""},	// for custom client list
 
@@ -1546,12 +1788,18 @@ struct nvram_tuple router_defaults[] = {
 	{ "x_Setting", "0"},		// is any setting set
 	{ "r_Setting", "0"},		// is repeater set
 	{ "w_Setting", "0"},		// is wilreess set
+	{ "ui_Setting", "0"},		// for Language change in QIS
 
 	{ "asus_mfg", "0"},		// 2008.03 James.
 	{ "asus_mfg_flash", ""},	// 2008.03 James.
 	{ "btn_rst", "0"},		// 2008.03 James.
 	{ "btn_ez", "0"},		// 2008.03 James.
 	{ "btn_ez_radiotoggle", "0"},	// Turn WPS into radio toggle
+	{ "btn_ez_mode", "0"},	//Turn WPS into led toggle. 0: wps, 1:led
+	//TODO: maybe
+	//1: led. led on/off
+	//2: radio. Wifi radio on/off (btn_ez_radiotoggle=1) ?
+	//3: reset to default (RTCONFIG_WPS_RST_BTN: RT-N11P) ?
 #ifdef RTCONFIG_WIFI_TOG_BTN
 	{ "btn_wifi_toggle", "0"},
 #endif
@@ -1599,12 +1847,9 @@ struct nvram_tuple router_defaults[] = {
 #ifdef RTCONFIG_USB_MODEM
 	{ "usb_qmi", "1"},
 	{ "Dev3G", "AUTO"},
+	{ "modem_android", "0"},
 	{ "modem_enable", "1"}, // 0: disabled, 1: WCDMA, 2: CDMA2000, 3: TD-SCDMA, 4: WiMAX.
-#ifdef RT4GAC55U
 	{ "modem_autoapn", "1"}, // 0: disabled, 1: enabled, 2: don't change modem nvrams.
-#else
-	{ "modem_autoapn", "0"}, // 0: disabled, 1: enabled, 2: don't change modem nvrams.
-#endif
 	{ "modem_roaming", "0"}, // 0: disabled, 1: enabled.
 	{ "modem_roaming_mode", "1"}, // 0: automatically, 1: manually.
 	{ "modem_roaming_isp", ""}, // operator at the long format.
@@ -1615,27 +1860,37 @@ struct nvram_tuple router_defaults[] = {
 	{ "modem_country", ""},
 	{ "modem_pdp", "0"},	// 0: PDP-IP(IPv4), 1: PDP-PPP, 2: PDP-IPv6, 3: PDP-IPv4v6
 	{ "modem_isp", ""},
-	{ "modem_apn", "internet"},
 	{ "modem_spn", ""},
+	{ "modem_apn", "internet"},
 	{ "modem_dialnum", "*99#"},
+	{ "modem_authmode", "0"},
 	{ "modem_user", ""},
 	{ "modem_pass", ""},
+	{ "modem_apn_v6", "internet6"},
+	{ "modem_authmode_v6", "0"},
+	{ "modem_user_v6", ""},
+	{ "modem_pass_v6", ""},
 	{ "modem_ttlsid", ""},
 	{ "modem_mode", "0"}, // 0: auto, 2: 2G only, 3: 3G only, 4: 4G only, 43: 4G/3G.
 	{ "modem_running", "0"},
 #ifdef RTCONFIG_USB_MODEM_PIN
 	{ "modem_pincode_opt", "1"},
 #endif
-	{ "modem_bytes_data_cycle", "0"},
-	{ "modem_bytes_data_start", "0"},
-	{ "modem_bytes_data_limit", "0"},
-	{ "modem_bytes_data_warning", "0"},
-	{ "modem_bytes_rx_old", "0"},
-	{ "modem_bytes_tx_old", "0"},
-	{ "modem_bytes_rx", "0"},
-	{ "modem_bytes_tx", "0"},
+	{ "modem_sim_num", "10"},
 	{ "modem_limit_unit", "0"}, /* 0: GBytes  1: MBytes*/
-	{ "modem_warning_unit", "0"}, /* 0: GBytes  1: MBytes*/	
+	{ "modem_warning_unit", "0"}, /* 0: GBytes  1: MBytes*/
+	{ "modem_sms_limit", "0"}, // 0: disable, 1: enable.
+	{ "modem_sms_phone", ""},
+	{ "modem_sms_message1", "This is a alert about the data usage is over:"},
+	{ "modem_sms_message2", "The data usage has reached the limit:"},
+	{ "modem_reg_time", "10"},
+#if defined(RTCONFIG_JFFS2) || defined(RTCONFIG_BRCM_NAND_JFFS2) || defined(RTCONFIG_UBIFS)
+	{ "modem_bytes_data_cycle", "31"},
+	{ "modem_bytes_data_limit", "0"}, /* 0: disabled */
+	{ "modem_bytes_data_warning", "0"}, /* 0: disabled */
+	{ "modem_bytes_data_save", "1800"}, // the interval to save the data usage. need to be 30 times.
+#endif
+	{ "modem_mtu", "0"}, // 0: auto, 576 <= x < interface mtu
 #endif
 
 	{ "udpxy_enable_x", "0"},
@@ -1738,10 +1993,12 @@ struct nvram_tuple router_defaults[] = {
 	{ "vpn_server_unit",		"1"		},
 	{ "vpn_serverx_start",		""		},
 	{ "vpn_serverx_dns",		""		},
+	{ "vpn_serverx_clientlist",	""		},
 	{ "vpn_server_poll",		"0"		},
 	{ "vpn_server_if",		"tun"		},
 	{ "vpn_server_proto",		"udp"		},
 	{ "vpn_server_port",		"1194"		},
+	{ "vpn_server_sockbuf",		"1"		},
 	{ "vpn_server_firewall",	"auto"		},
 	{ "vpn_server_crypt",		"tls"		},
 	{ "vpn_server_comp",		"adaptive"	},
@@ -1765,11 +2022,11 @@ struct nvram_tuple router_defaults[] = {
 	{ "vpn_server_custom",		""		},
 	{ "vpn_server_igncrt",		"1"		},
 	{ "vpn_server_userpass_auth",	"0"		},
-	{ "vpn_serverx_clientlist",	""		},
 	{ "vpn_server1_poll",		"0"		},
 	{ "vpn_server1_if",		"tun"		},
 	{ "vpn_server1_proto",		"udp"		},
 	{ "vpn_server1_port",		"1194"		},
+	{ "vpn_server_sockbuf",         "1"     	},
 	{ "vpn_server1_firewall",	"auto"		},
 	{ "vpn_server1_crypt",		"tls"		},
 	{ "vpn_server1_comp",		"adaptive"	},
@@ -1808,6 +2065,7 @@ struct nvram_tuple router_defaults[] = {
 	{ "vpn_server2_if",		"tun"		},
 	{ "vpn_server2_proto",		"udp"		},
 	{ "vpn_server2_port",		"1194"		},
+	{ "vpn_server_sockbuf",         "1"     	},
 	{ "vpn_server2_firewall",	"auto"		},
 	{ "vpn_server2_crypt",		"tls"		},
 	{ "vpn_server2_comp",		"adaptive"	},
@@ -1879,6 +2137,8 @@ struct nvram_tuple router_defaults[] = {
 	{ "vpn_client1_useronly",	"0"		},
 	{ "vpn_client1_state",		"0"		},
 	{ "vpn_client1_errno",		"0"		},
+	{ "vpn_client1_clientlist",	""		},
+	{ "vpn_client1_enforce",	"0"		},
 	{ "vpn_client2_poll",		"0"		},
 	{ "vpn_client2_if",		"tun"		},
 	{ "vpn_client2_bridge",		"1"		},
@@ -1914,6 +2174,123 @@ struct nvram_tuple router_defaults[] = {
 	{ "vpn_client2_password",	""		},
 	{ "vpn_client2_state",		"0"		},
 	{ "vpn_client2_errno",		"0"		},
+	{ "vpn_client2_clientlist",	""		},
+	{ "vpn_client2_enforce",	"0"		},
+
+	{ "vpn_client3_poll",		"0"		},
+	{ "vpn_client3_if",		"tun"		},
+	{ "vpn_client3_bridge",		"1"		},
+	{ "vpn_client3_nat",		"1"		},
+	{ "vpn_client3_proto",		"udp"		},
+	{ "vpn_client3_addr",		""		},
+	{ "vpn_client3_port",		"1194"		},
+	{ "vpn_client3_retry",		"30"		},
+	{ "vpn_client3_rg",		"0"		},
+	{ "vpn_client3_firewall",	"auto"		},
+	{ "vpn_client3_crypt",		"tls"		},
+	{ "vpn_client3_comp",		"adaptive"	},
+	{ "vpn_client3_cipher",		"default"	},
+	{ "vpn_client3_local",		"10.8.0.2"	},
+	{ "vpn_client3_remote",		"10.8.0.1"	},
+	{ "vpn_client3_nm",		"255.255.255.0"	},
+	{ "vpn_client3_reneg",		"-1"		},
+	{ "vpn_client3_hmac",		"-1"		},
+	{ "vpn_client3_adns",		"0"		},
+	{ "vpn_client3_rgw",		"0"		},
+	{ "vpn_client3_gw",		""		},
+	{ "vpn_client3_custom",		""		},
+	{ "vpn_client3_cn",		""		},
+	{ "vpn_client3_tlsremote",	"0"		},
+	{ "vpn_client3_useronly",	"0"		},
+	{ "vpn_crt_client3_static",	""		},
+	{ "vpn_crt_client3_ca",		""		},
+	{ "vpn_crt_client3_crt",	""		},
+	{ "vpn_crt_client3_key",	""		},
+	{ "vpn_crt_client3_crl",	""		},
+	{ "vpn_client3_userauth",	"0"		},
+	{ "vpn_client3_username",	""		},
+	{ "vpn_client3_password",	""		},
+	{ "vpn_client3_state",		"0"		},
+	{ "vpn_client3_errno",		"0"		},
+	{ "vpn_client3_clientlist",	""		},
+	{ "vpn_client3_enforce",	"0"		},
+
+	{ "vpn_client4_poll",		"0"		},
+	{ "vpn_client4_if",		"tun"		},
+	{ "vpn_client4_bridge",		"1"		},
+	{ "vpn_client4_nat",		"1"		},
+	{ "vpn_client4_proto",		"udp"		},
+	{ "vpn_client4_addr",		""		},
+	{ "vpn_client4_port",		"1194"		},
+	{ "vpn_client4_retry",		"30"		},
+	{ "vpn_client4_rg",		"0"		},
+	{ "vpn_client4_firewall",	"auto"		},
+	{ "vpn_client4_crypt",		"tls"		},
+	{ "vpn_client4_comp",		"adaptive"	},
+	{ "vpn_client4_cipher",		"default"	},
+	{ "vpn_client4_local",		"10.8.0.2"	},
+	{ "vpn_client4_remote",		"10.8.0.1"	},
+	{ "vpn_client4_nm",		"255.255.255.0"	},
+	{ "vpn_client4_reneg",		"-1"		},
+	{ "vpn_client4_hmac",		"-1"		},
+	{ "vpn_client4_adns",		"0"		},
+	{ "vpn_client4_rgw",		"0"		},
+	{ "vpn_client4_gw",		""		},
+	{ "vpn_client4_custom",		""		},
+	{ "vpn_client4_cn",		""		},
+	{ "vpn_client4_tlsremote",	"0"		},
+	{ "vpn_client4_useronly",	"0"		},
+	{ "vpn_crt_client4_static",	""		},
+	{ "vpn_crt_client4_ca",		""		},
+	{ "vpn_crt_client4_crt",	""		},
+	{ "vpn_crt_client4_key",	""		},
+	{ "vpn_crt_client4_crl",	""		},
+	{ "vpn_client4_userauth",	"0"		},
+	{ "vpn_client4_username",	""		},
+	{ "vpn_client4_password",	""		},
+	{ "vpn_client4_state",		"0"		},
+	{ "vpn_client4_errno",		"0"		},
+	{ "vpn_client4_clientlist",	""		},
+	{ "vpn_client4_enforce",	"0"		},
+
+	{ "vpn_client5_poll",		"0"		},
+	{ "vpn_client5_if",		"tun"		},
+	{ "vpn_client5_bridge",		"1"		},
+	{ "vpn_client5_nat",		"1"		},
+	{ "vpn_client5_proto",		"udp"		},
+	{ "vpn_client5_addr",		""		},
+	{ "vpn_client5_port",		"1194"		},
+	{ "vpn_client5_retry",		"30"		},
+	{ "vpn_client5_rg",		"0"		},
+	{ "vpn_client5_firewall",	"auto"		},
+	{ "vpn_client5_crypt",		"tls"		},
+	{ "vpn_client5_comp",		"adaptive"	},
+	{ "vpn_client5_cipher",		"default"	},
+	{ "vpn_client5_local",		"10.8.0.2"	},
+	{ "vpn_client5_remote",		"10.8.0.1"	},
+	{ "vpn_client5_nm",		"255.255.255.0"	},
+	{ "vpn_client5_reneg",		"-1"		},
+	{ "vpn_client5_hmac",		"-1"		},
+	{ "vpn_client5_adns",		"0"		},
+	{ "vpn_client5_rgw",		"0"		},
+	{ "vpn_client5_gw",		""		},
+	{ "vpn_client5_custom",		""		},
+	{ "vpn_client5_cn",		""		},
+	{ "vpn_client5_tlsremote",	"0"		},
+	{ "vpn_client5_useronly",	"0"		},
+	{ "vpn_crt_client5_static",	""		},
+	{ "vpn_crt_client5_ca",		""		},
+	{ "vpn_crt_client5_crt",	""		},
+	{ "vpn_crt_client5_key",	""		},
+	{ "vpn_crt_client5_crl",	""		},
+	{ "vpn_client5_userauth",	"0"		},
+	{ "vpn_client5_username",	""		},
+	{ "vpn_client5_password",	""		},
+	{ "vpn_client5_state",		"0"		},
+	{ "vpn_client5_errno",		"0"		},
+	{ "vpn_client5_clientlist",	""		},
+	{ "vpn_client5_enforce",	"0"		},
+
 	{ "vpn_client_poll",		"0"		},
 	{ "vpn_client_if",		"tun"		},
 	{ "vpn_client_bridge",		"1"		},
@@ -1942,6 +2319,8 @@ struct nvram_tuple router_defaults[] = {
 	{ "vpn_client_username",	""		},
 	{ "vpn_client_password",	""		},
 	{ "vpn_client_useronly",	"0"		},
+	{ "vpn_client_clientlist",	""		},
+	{ "vpn_client_enforce",		"0"		},
 #endif
 
 #ifdef RTCONFIG_PUSH_EMAIL
@@ -1971,12 +2350,9 @@ struct nvram_tuple router_defaults[] = {
 	{ "pushnotify_diskmonitor", "1"},
 	{ "PM_attach_syslog", ""},
 	{ "PM_attach_cfgfile", ""},
-	{ "PM_attach_iptables", ""},
+	{ "PM_attach_modemlog", ""},
 	{ "fb_country", ""},
-	{ "fb_ISP", ""},
-	{ "fb_Subscribed_Info", ""},
 	{ "fb_email", ""},
-	{ "fb_availability", ""},
 	{ "fb_comment", ""},
 	{ "fb_email_dbg", ""},	//send to email address
 	{ "fb_state", ""},
@@ -1984,8 +2360,18 @@ struct nvram_tuple router_defaults[] = {
 #ifdef RTCONFIG_DSL
 	// for web ui udentify , 0=notificaton, 1=close
 	{ "fb_experience", "0"},
-#endif
-#endif
+	{ "fb_ISP", ""},
+	{ "fb_Subscribed_Info", ""},
+	{ "PM_attach_iptables", ""},
+	{ "fb_availability", ""},
+	{ "ewan_dot1q", "0"},
+	{ "ewan_vid", "0"},
+	{ "ewan_dot1p", "0"},
+#else
+	{ "fb_ptype", ""},
+	{ "fb_pdesc", ""},
+#endif /* RTCONFIG_DSL */
+#endif /* RTCONFIG_PUSH_EMAIL */
 
 #ifdef __CONFIG_NORTON__
 	{ "nga_lickey",			"0"		},
@@ -2041,14 +2427,11 @@ struct nvram_tuple router_defaults[] = {
 	{ "ipv6_dhcp_end",	""		},	// end of address pool
 	{ "ipv6_fw_enable",	"1"		},	// Default FORWARD table to DROP packets
 	{ "ipv6_fw_rulelist",	""		},	// IPv6 allowed forward rules
-#ifdef RTCONFIG_WIDEDHCP6
-	{ "ipv6_ra_conf",	"noneset"	},	// address configuration from WAN router advertisement
-#endif /* RTCONFIG_WIDEDHCP6 */
 	{ "ipv6_prefix_s",	""		},	// for ipv6 6in4
 	{ "ipv6_prefix_length_s", "64"		},	// for ipv6 6in4/other
 	{ "ipv6_rtr_addr_s",	""		},	// for ipv6 other
 	{ "ipv6_dhcp6s_enable",	"1"		},	// DHCP6 Server for LAN
-	{ "ipv6_neighsol_drop", "1" 		}, 	// Filter out neighbour solicitation flood on Comcast network
+	{ "ipv6_ns_drop", "0" 		},	 	// Filter out neighbour solicitation flood on Comcast network
 #endif
 	{ "web_redirect", 	"1"		},	// Only NOLINK is redirected in default, it is overwrited in init_nvram
 	{ "disiosdet",		"1"		},
@@ -2112,6 +2495,7 @@ struct nvram_tuple router_defaults[] = {
 #endif
 #if defined(RTCONFIG_TR069)
 	{ "tr_enable", "0"},
+	{ "tr_discovery", "0" },
 	{ "tr_inform_enable", "1"},
 	{ "tr_inform_interval", "86400"},
 	{ "tr_acs_url", ""},
@@ -2128,15 +2512,66 @@ struct nvram_tuple router_defaults[] = {
 #endif
 	{ "Ate_fw_fail",		"10"},
 	{ "Ate_reboot_delay",		"1"},
-#ifdef RTCONFIG_USER_LOW_RSSI
+#if (defined(RTCONFIG_USER_LOW_RSSI) || defined(RTCONFIG_NEW_USER_LOW_RSSI))
 	{ "wl_user_rssi",		"0"},		/* disabled by default, setting range: -70 ~ -90 */
+#ifndef RTCONFIG_BCMARM
 	{ "wl_lrc",			"2"},
 #endif
-	{ "webui_resolve_conn", "0"},
-	{ "led_disable", "0"},
-
+	{ "rast_idlrt",			"2"},		/* roaming assistant idle rate (Kbps) */
+#endif
+	{ "webui_resolve_conn",		"0"},
+	{ "led_disable",		"0"},
+	{ "custom_clientlist",		""},		/* for customize device name */
+	{ "nmp_client_list",		""},
+	{ "ttl_inc_enable",		"0"},		/* enable TTL increment */
+#ifdef RTCONFIG_TOR
+	{ "Tor_enable",                 "0"},           /* enable Tor Transparent Proxy */
+	{ "Tor_socksport",              "9050"},
+	{ "Tor_transport",              "9040"},
+	{ "Tor_dnsport",                "9053"},
+	{ "Tor_redir_list",             ""},
+#endif
+#ifdef RTCONFIG_JFFS2USERICON
+	{ "custom_usericon",	""},
+	{ "custom_usericon_del",	""},
+#endif
+#ifdef RTCONFIG_TRAFFIC_CONTROL
+	{ "traffic_control_enable", "0"},
+	{ "traffic_control_date_start", ""},
+	{ "traffic_control_alert_enable", "1"},
+	{ "traffic_control_alert_max", "40"},
+	{ "traffic_control_limit_enable", "0"},
+	{ "traffic_control_limit_max", "45"},
+#endif
+#ifdef RTCONFIG_CLOUDCHECK
+	{ "enable_cloudcheck",	"0"},
+#endif
+#ifdef RTCONFIG_BCMARM
+	{ "drop_caches", "1"},
+#endif
+#ifdef RTCONFIG_RESTRICT_GUI
+	{ "fw_restrict_gui",	"0"},
+	{ "fw_restrict_gui_mac",	""},
+#endif
+#ifdef RTCONFIG_KEY_GUARD
+	{ "kg_enable",	"0"},
+	{ "kg_wan_enable",	"1"},
+	{ "kg_powersaving_enable",	"1"},
+	{ "kg_wl_radio_enable",	"0"},
+	{ "kg_wl_radio",	"0"},
+	{ "kg_device_enable",	""},
+	{ "kg_devicename",	""},
+	{ "kg_mac",	""},
+#endif
+#ifdef RTCONFIG_WTFAST
+	{ "wtf_username", ""},
+	{ "wtf_passwd", ""},
+	{ "wtf_rulelist", ""},
+	{ "wtf_enable_games", ""},
+#endif
+	{ "guard_mode",	"0"},
 	{ NULL, NULL }
-};
+}; // router_defaults
 
 // nvram for system control state
 struct nvram_tuple router_state_defaults[] = {
@@ -2157,6 +2592,12 @@ struct nvram_tuple router_state_defaults[] = {
 	{ "wan_sbstate_t", "0" },	// record substate for each wan state
 	{ "wan_auxstate_t", "0" },	// which is maintained by wanduck
 	{ "wan_proto_t", "" },
+
+#ifdef RTCONFIG_GETREALIP
+	{ "wan_realip_state",	"0"},
+	{ "wan_realip_ip",	""},
+#endif
+
 	{ "nat_state", "0"},
 	{ "link_wan", ""},
 	{ "link_wan1", ""},
@@ -2172,7 +2613,7 @@ struct nvram_tuple router_state_defaults[] = {
 	{ "lan_sbstate_t", "0" },	// record substate for each wan state
 	{ "lan_auxstate_t", "0" },	// whcih is mtainted by wanduck
 
-	{ "autodet_state", "0"},
+	{ "autodet_state", ""},
 	{ "autodet_auxstate", "0"},
 	{ "invoke_later", "0"},
 
@@ -2374,24 +2815,29 @@ struct nvram_tuple router_state_defaults[] = {
 // for temp variable please use dsltmp_xxx
 	{ "dsltmp_autodet_state", "down"},
 	{ "dsltmp_autodet_vpi", "0"},
-	{ "dsltmp_autodet_vci", "35"},
+	{ "dsltmp_autodet_vci", "33"},
 	{ "dsltmp_autodet_encap", "0"},
 	{ "dsltmp_autodet_wan_type", "ATM"},
 // manually config
-	{ "dsltmp_cfg_prctl", "0"},
+	{ "dsltmp_cfg_country", ""},
+	{ "dsltmp_cfg_ispname", ""},
 	{ "dsltmp_cfg_vpi", "0"},
 	{ "dsltmp_cfg_vci", "35"},
+	{ "dsltmp_cfg_prctl", "0"},
 	{ "dsltmp_cfg_encap", "0"},
-	{ "dsltmp_cfg_iptv_idx", ""},
-	{ "dsltmp_cfg_iptv_num_pvc", "0"},
-	{ "dsltmp_cfg_ispname", ""},
-	{ "dsltmp_cfg_country", ""},
-#ifdef RTCONFIG_VDSL
+#ifdef RTCONFIG_DSL_TCLINUX
 	{ "dsltmp_cfg_dot1q", "0"},
 	{ "dsltmp_cfg_vid", ""},
 #endif
+	{ "dsltmp_cfg_iptv_rmvlan", ""},
+	{ "dsltmp_cfg_iptv_mr", ""},
+	{ "dsltmp_cfg_iptv_idx", ""},
+	{ "dsltmp_cfg_iptv_num_pvc", "0"},
+	{ "dsltmp_cfg_iptv_pvclist", ""},
+	{ "dsltmp_cfg_iptv_enable", "0"},
 
 // tmp variable for QIS , it will write to dsl0_xxx after finish page
+	{ "dsltmp_qis_reboot", "0"},	//tmp for reboot flag before implement proper service without reboot
 	{ "dsltmp_qis_vpi", ""},
 	{ "dsltmp_qis_vci", ""},
 	{ "dsltmp_qis_proto", ""},
@@ -2455,6 +2901,13 @@ struct nvram_tuple router_state_defaults[] = {
 	{ "dsllog_powerup", ""},
 	{ "dsllog_crcdown", ""},
 	{ "dsllog_crcup", ""},
+	{ "dsllog_farendvendorid", ""},
+	{ "dsllog_pathmodedown", ""},
+	{ "dsllog_pathmodeup", ""},
+	{ "dsllog_interleavedepthdown", ""},
+	{ "dsllog_interleavedepthup", ""},
+	{ "dsllog_tcm", ""},
+	{ "dsllog_vdslcurrentprofile", ""},
 #endif
 
 #endif
@@ -2463,6 +2916,7 @@ struct nvram_tuple router_state_defaults[] = {
 	{ "ddns_status", ""},
 	{ "ddns_server_x_old", ""},
 	{ "ddns_hostname_old", ""},
+	{ "ddns_hostname_x_old", ""},
 	{ "ddns_return_code", ""},
 	{ "ddns_return_code_chk", ""},
 	{ "ddns_update_by_wdog", ""},
@@ -2472,21 +2926,7 @@ struct nvram_tuple router_state_defaults[] = {
 	{ "data_usage_cycle", "30"},
 	{ "data_usage_limit", "8"},
 	{ "data_usage_warning", "6"},
-	{ "sim_mtu", "1492"},	
 	{ "modem_idletime", "600"},
-	{ "nmp_client_list",		""},
-	{ "ttl_inc_enable",		"0"},		/* enable TTL increment */
-#ifdef RTCONFIG_TOR	
-	{ "Tor_enable",			"0"},		/* enable Tor Transparent Proxy	*/
-	{ "Tor_socksport",		"9050"},
-	{ "Tor_transport",		"9040"},
-	{ "Tor_dnsport",		"9053"},
-	{ "Tor_redir_list",		""},
-#endif
-#ifdef RTCONFIG_JFFS2USERICON
-	{ "custom_usericon",	""},
-	{ "custom_usericon_del",	""},
-#endif
 	{ NULL, NULL }
 };
 
@@ -2646,15 +3086,15 @@ struct nvram_tuple bcm4360ac_defaults[] = {
 	{ "1:ofdmlrbw202gpo", "0", 0 },
 	{ "1:dot11agduphrpo", "0", 0 },
 	{ "1:dot11agduplrpo", "0", 0 },
-	{ "1:maxp2ga0", "106", 0 },
+	{ "1:maxp2ga0", "102", 0 },
 	{ "1:rxgains2gelnagaina0", "4", 0 },
 	{ "1:rxgains2gtrisoa0", "7", 0 },
 	{ "1:rxgains2gtrelnabypa0", "1", 0 },
-	{ "1:maxp2ga1", "106", 0 },
+	{ "1:maxp2ga1", "102", 0 },
 	{ "1:rxgains2gelnagaina1", "4", 0 },
 	{ "1:rxgains2gtrisoa1", "7", 0 },
 	{ "1:rxgains2gtrelnabypa1", "1", 0 },
-	{ "1:maxp2ga2", "106", 0 },
+	{ "1:maxp2ga2", "102", 0 },
 	{ "1:rxgains2gelnagaina2", "4", 0 },
 	{ "1:rxgains2gtrisoa2", "7", 0 },
 	{ "1:rxgains2gtrelnabypa2", "1", 0 },
@@ -2717,7 +3157,7 @@ struct nvram_tuple bcm4360ac_defaults[] = {
 	{ "0:rxgains5gelnagaina0", "2", 0 },
 	{ "0:rxgains5gtrisoa0", "5", 0 },
 	{ "0:rxgains5gtrelnabypa0", "1", 0 },
-	{ "0:maxp5ga0", "94,90,90,106", 0 },
+	{ "0:maxp5ga0", "94,94,90,90", 0 },
 	{ "0:rxgains5gmelnagaina1", "2", 0 },
 	{ "0:rxgains5gmtrisoa1", "5", 0 },
 	{ "0:rxgains5gmtrelnabypa1", "1", 0 },
@@ -2727,7 +3167,7 @@ struct nvram_tuple bcm4360ac_defaults[] = {
 	{ "0:rxgains5gelnagaina1", "2", 0 },
 	{ "0:rxgains5gtrisoa1", "5", 0 },
 	{ "0:rxgains5gtrelnabypa1", "1", 0 },
-	{ "0:maxp5ga1", "94,90,90,106", 0 },
+	{ "0:maxp5ga1", "94,94,90,90", 0 },
 	{ "0:rxgains5gmelnagaina2", "2", 0 },
 	{ "0:rxgains5gmtrisoa2", "5", 0 },
 	{ "0:rxgains5gmtrelnabypa2", "1", 0 },
@@ -2737,7 +3177,7 @@ struct nvram_tuple bcm4360ac_defaults[] = {
 	{ "0:rxgains5gelnagaina2", "2", 0 },
 	{ "0:rxgains5gtrisoa2", "5", 0 },
 	{ "0:rxgains5gtrelnabypa2", "1", 0 },
-	{ "0:maxp5ga2", "94,90,90,106", 0 },
+	{ "0:maxp5ga2", "94,94,90,90", 0 },
 	{ "0:ledbh10", "7", 0 },
 	{ "devpath2", "pcie/2/1", 0 },
 	{ "2:devpath2", "sb/1/", 0 },
@@ -2797,7 +3237,7 @@ struct nvram_tuple bcm4360ac_defaults[] = {
 	{ "2:rxgains5gelnagaina0", "2", 0 },
 	{ "2:rxgains5gtrisoa0", "5", 0 },
 	{ "2:rxgains5gtrelnabypa0", "1", 0 },
-	{ "2:maxp5ga0", "90,90,90,106", 0 },
+	{ "2:maxp5ga0", "90,90,106,106", 0 },
 	{ "2:rxgains5gmelnagaina1", "2", 0 },
 	{ "2:rxgains5gmtrisoa1", "5", 0 },
 	{ "2:rxgains5gmtrelnabypa1", "1", 0 },
@@ -2807,7 +3247,7 @@ struct nvram_tuple bcm4360ac_defaults[] = {
 	{ "2:rxgains5gelnagaina1", "2", 0 },
 	{ "2:rxgains5gtrisoa1", "5", 0 },
 	{ "2:rxgains5gtrelnabypa1", "1", 0 },
-	{ "2:maxp5ga1", "90,90,90,106", 0 },
+	{ "2:maxp5ga1", "90,90,106,106", 0 },
 	{ "2:rxgains5gmelnagaina2", "2", 0 },
 	{ "2:rxgains5gmtrisoa2", "5", 0 },
 	{ "2:rxgains5gmtrelnabypa2", "1", 0 },
@@ -2817,9 +3257,1417 @@ struct nvram_tuple bcm4360ac_defaults[] = {
 	{ "2:rxgains5gelnagaina2", "2", 0 },
 	{ "2:rxgains5gtrisoa2", "5", 0 },
 	{ "2:rxgains5gtrelnabypa2", "1", 0 },
-	{ "2:maxp5ga2", "90,90,90,106", 0 },
+	{ "2:maxp5ga2", "90,90,106,106", 0 },
 	{ "2:ledbh10", "7", 0 },
 	{ 0, 0, 0 }
+};
+#elif defined(RTAC88U) || defined(RTAC3100)
+struct nvram_tuple bcm4360ac_defaults[] = {
+#if 0
+	{ "devpath0", "pci/1/1", 0 },
+	{ "0:sromrev", "13", 0 },
+	{ "0:boardrev", "0x1104", 0 },
+	{ "0:boardflags", "0x10001000", 0 },
+	{ "0:boardflags2", "0x4", 0 },
+	{ "0:boardflags3", "0x0", 0 },
+	{ "0:boardflags4", "0x0", 0 },
+	{ "0:devid", "0x43c4", 0 },
+	{ "0:subvid", "0x14e4", 0 },
+	//{ "0:macaddr", "00:90:4c:1d:b0:0e", 0 },
+	//{ "0:ccode", "ALL", 0 },
+	//{ "0:regrev", "0", 0 },
+	{ "0:aa2g", "15", 0 },
+	{ "0:agbg0", "133", 0 },
+	{ "0:agbg1", "133", 0 },
+	{ "0:agbg2", "133", 0 },
+	{ "0:agbg3", "5", 0 },
+	{ "0:aga0", "71", 0 },
+	{ "0:aga1", "71", 0 },
+	{ "0:aga2", "71", 0 },
+	{ "0:aga3", "133", 0 },
+	{ "0:antswitch", "0", 0 },
+	{ "0:tssiposslope2g", "1", 0 },
+	{ "0:epagain2g", "0", 0 },
+	{ "0:pdgain2g", "2", 0 },
+	{ "0:tworangetssi2g", "0", 0 },
+	{ "0:papdcap2g", "0", 0 },
+	{ "0:femctrl", "2", 0 },
+	{ "0:gainctrlsph", "0", 0 },
+	{ "0:tempthresh", "120", 0 },
+	{ "0:tempoffset", "255", 0 },
+	{ "0:rawtempsense", "0x1ff", 0 },
+	{ "0:measpower", "0x7f", 0 },
+	{ "0:tempsense_slope", "0xff", 0 },
+	{ "0:tempcorrx", "0x3f", 0 },
+	{ "0:tempsense_option", "0x3", 0 },
+	{ "0:xtalfreq", "40000", 0 },
+	{ "0:phycal_tempdelta", "40", 0 },
+	{ "0:temps_period", "1", 0 },
+	{ "0:temps_hysteresis", "5", 0 },
+	{ "0:measpower1", "0x7f", 0 },
+	{ "0:measpower2", "0x7e", 0 },
+	{ "0:tssifloor2g", "0x1e", 0 },
+	{ "0:pdoffset2g40ma0", "5", 0 },
+	{ "0:pdoffset2g40ma1", "8", 0 },
+	{ "0:pdoffset2g40ma2", "5", 0 },
+	{ "0:pdoffset2g40mvalid", "0", 0 },
+	{ "0:pdoffset40ma0", "43452", 0 },
+	{ "0:pdoffset40ma1", "43452", 0 },
+	{ "0:pdoffset40ma2", "43452", 0 },
+	{ "0:pdoffset80ma0", "43452", 0 },
+	{ "0:pdoffset80ma1", "65535", 0 },
+	{ "0:pdoffset80ma2", "65535", 0 },
+	{ "0:pdoffset20in40m2g", "31710", 0 },
+	{ "0:pdoffset20in40m2gcore3", "30", 0 },
+	{ "0:pdoffsetcckma0", "15", 0 },
+	{ "0:pdoffsetcckma1", "15", 0 },
+	{ "0:pdoffsetcckma2", "15", 0 },
+	{ "0:pdoffsetcck", "0", 0 },
+	{ "0:paparambwver", "0", 0 },
+	{ "0:sar2g", "18", 0 },
+	{ "0:noiselvl2ga0", "31", 0 },
+	{ "0:noiselvl2ga1", "31", 0 },
+	{ "0:noiselvl2ga2", "31", 0 },
+	{ "0:noiselvl2ga3", "31", 0 },
+	//{ "0:rxgainerr2ga0", "63", 0 },
+	//{ "0:rxgainerr2ga1", "31", 0 },
+	//{ "0:rxgainerr2ga2", "31", 0 },
+	//{ "0:rxgainerr2ga3", "31", 0 },
+	//{ "0:rpcal2g", "65535", 0 },
+	{ "0:txidxcap2g", "0", 0 },
+	{ "0:gpdn", "0xffffffff", 0 },
+	{ "0:eu_edthresh2g", "255", 0 },
+	{ "0:ulbpproffs2g", "65535", 0 },
+	{ "0:mcs8poexp", "0", 0 },
+	{ "0:mcs9poexp", "0", 0 },
+	{ "0:ulbpdoffs2ga0", "65535", 0 },
+	{ "0:ulbpdoffs2ga1", "65535", 0 },
+	{ "0:ulbpdoffs2ga2", "65535", 0 },
+	{ "0:ulbpdoffs2ga3", "65535", 0 },
+	{ "0:rpcal5gb4", "65535", 0 },
+	{ "0:sb20in40hrlrpox", "65535", 0 },
+	{ "0:swctrlmap4_cfg", "5", 0 },
+	{ "0:swctrlmap4_TX2g_fem3to0", "43690", 0 },
+	{ "0:swctrlmap4_RX2g_fem3to0", "17476", 0 },
+	{ "0:swctrlmap4_RXByp2g_fem3to0", "26214", 0 },
+	{ "0:swctrlmap4_misc2g_fem3to0", "8738", 0 },
+	{ "0:swctrlmap4_TX5g_fem3to0", "0", 0 },
+	{ "0:swctrlmap4_RX5g_fem3to0", "0", 0 },
+	{ "0:swctrlmap4_RXByp5g_fem3to0", "0", 0 },
+	{ "0:swctrlmap4_misc5g_fem3to0", "0", 0 },
+	{ "0:swctrlmap4_TX2g_fem7to4", "0", 0 },
+	{ "0:swctrlmap4_RX2g_fem7to4", "0", 0 },
+	{ "0:swctrlmap4_RXByp2g_fem7to4", "0", 0 },
+	{ "0:swctrlmap4_misc2g_fem7to4", "0", 0 },
+	{ "0:swctrlmap4_TX5g_fem7to4", "0", 0 },
+	{ "0:swctrlmap4_RX5g_fem7to4", "0", 0 },
+	{ "0:swctrlmap4_RXByp5g_fem7to4", "0", 0 },
+	{ "0:swctrlmap4_misc5g_fem7to4", "0", 0 },
+	{ "0:maxp2ga0", "96", 0 },
+	{ "0:maxp2ga1", "96", 0 },
+	{ "0:maxp2ga2", "96", 0 },
+	{ "0:maxp2ga3", "96", 0 },
+	{ "0:cckbw202gpo", "0x0000", 0 },
+	{ "0:cckbw20ul2gpo", "0x0000", 0 },
+	{ "0:ofdmlrbw202gpo", "0x6622", 0 },
+	{ "0:dot11agofdmhrbw202gpo", "0xaa88", 0 },
+	{ "0:mcsbw202gpo", "0xccaa8862", 0 },
+	{ "0:mcsbw402gpo", "0xccaa8862", 0 },
+	{ "0:mcs1024qam2gpo", "0xeeee", 0 },
+	{ "0:dot11agduphrpo", "0", 0 },
+	{ "0:dot11agduplrpo", "0", 0 },
+	{ "0:mcs10poexp", "0", 0 },
+	{ "0:mcs11poexp", "0", 0 },
+	{ "0:sb20in40hrpo", "0", 0 },
+	{ "0:sb20in80and160hr5glpo", "0", 0 },
+	{ "0:sb40and80hr5glpo", "0", 0 },
+	{ "0:sb20in80and160hr5gmpo", "0", 0 },
+	{ "0:sb40and80hr5gmpo", "0", 0 },
+	{ "0:sb20in80and160hr5ghpo", "0", 0 },
+	{ "0:sb40and80hr5ghpo", "0", 0 },
+	{ "0:sb20in40lrpo", "0", 0 },
+	{ "0:sb20in80and160lr5glpo", "0", 0 },
+	{ "0:sb40and80lr5glpo", "0", 0 },
+	{ "0:sb20in80and160lr5gmpo", "0", 0 },
+	{ "0:sb40and80lr5gmpo", "0", 0 },
+	{ "0:sb20in80and160lr5ghpo", "0", 0 },
+	{ "0:sb40and80lr5ghpo", "0", 0 },
+	//{ "0:pa2ga0", "0x1d05,0xd4c7,0x1e54,0x2407", 0 },
+	//{ "0:pa2g40a0", "0x1a98,0xe279,0x3583,0x262b", 0 },
+	//{ "0:pa2ga1", "0x1ce3,0xd4e9,0x1e27,0x2409", 0 },
+	//{ "0:pa2g40a1", "0x1a8a,0xe06c,0x3246,0x260a", 0 },
+	//{ "0:pa2ga2", "0x1cf3,0xd56b,0x2017,0x2447", 0 },
+	//{ "0:pa2g40a2", "0x1b7b,0xde56,0x2d05,0x254e", 0 },
+	//{ "0:pa2ga3", "0x1d10,0xd52a,0x1f11,0x2433", 0 },
+	//{ "0:pa2g40a3", "0x1ae4,0xe123,0x35ca,0x2658", 0 },
+	{ "0:rxgains2gelnagaina0", "4", 0 },
+	{ "0:rxgains2gtrisoa0", "7", 0 },
+	{ "0:rxgains2gtrelnabypa0", "1", 0 },
+	{ "0:rxgains2gelnagaina1", "4", 0 },
+	{ "0:rxgains2gtrisoa1", "7", 0 },
+	{ "0:rxgains2gtrelnabypa1", "1", 0 },
+	{ "0:rxgains2gelnagaina2", "4", 0 },
+	{ "0:rxgains2gtrisoa2", "7", 0 },
+	{ "0:rxgains2gtrelnabypa2", "1", 0 },
+	{ "0:rxgains2gelnagaina3", "4", 0 },
+	{ "0:rxgains2gtrisoa3", "7", 0 },
+	{ "0:rxgains2gtrelnabypa3", "1", 0 },
+	{ "0:maxp5gb4a0", "100", 0 },
+	{ "0:maxp5gb4a1", "100", 0 },
+	{ "0:maxp5gb4a2", "100", 0 },
+	{ "0:maxp5gb4a3", "100", 0 },
+	{ "0:tssifloor5g", "0x3ff,0x1bc,0x3ff,0x3ff", 0 },
+	{ "0:subband5gver", "0x5", 0 },
+	{ "0:aa5g", "15", 0 },
+	{ "0:sar5g", "15", 0 },
+	{ "0:noiselvl5ga0", "31,31,31,31", 0 },
+	{ "0:noiselvl5ga1", "31,31,31,31", 0 },
+	{ "0:noiselvl5ga2", "31,31,31,31", 0 },
+	{ "0:noiselvl5ga3", "31,31,31,31", 0 },
+	{ "0:rxgainerr5ga0", "63,63,63,63", 0 },
+	{ "0:rxgainerr5ga1", "31,31,31,31", 0 },
+	{ "0:rxgainerr5ga2", "31,31,31,31", 0 },
+	{ "0:rxgainerr5ga3", "31,31,31,31", 0 },
+	{ "0:rpcal5gb0", "65535", 0 },
+	{ "0:rpcal5gb1", "65535", 0 },
+	{ "0:rpcal5gb2", "65535", 0 },
+	{ "0:rpcal5gb3", "65535", 0 },
+	{ "0:txidxcap5g", "0", 0 },
+	{ "0:tssiposslope5g", "1", 0 },
+	{ "0:epagain5g", "0", 0 },
+	{ "0:pdgain5g", "2", 0 },
+	{ "0:tworangetssi5g", "0", 0 },
+	{ "0:papdcap5g", "0", 0 },
+	{ "0:maxp5gb0a0", "72", 0 },
+	{ "0:maxp5gb1a0", "72", 0 },
+	{ "0:maxp5gb2a0", "72", 0 },
+	{ "0:maxp5gb3a0", "72", 0 },
+	{ "0:maxp5gb0a1", "72", 0 },
+	{ "0:maxp5gb1a1", "72", 0 },
+	{ "0:maxp5gb2a1", "72", 0 },
+	{ "0:maxp5gb3a1", "72", 0 },
+	{ "0:maxp5gb0a2", "72", 0 },
+	{ "0:maxp5gb1a2", "72", 0 },
+	{ "0:maxp5gb2a2", "72", 0 },
+	{ "0:maxp5gb3a2", "72", 0 },
+	{ "0:maxp5gb0a3", "72", 0 },
+	{ "0:maxp5gb1a3", "72", 0 },
+	{ "0:maxp5gb2a3", "72", 0 },
+	{ "0:maxp5gb3a3", "72", 0 },
+	{ "0:pa5ga0", "0x1cd8,0xd5ab,0x2104,0x23e7,0x1be8,0xc593,0xfd93,0x1,0x1c55,0xc466,0xff0e,0xc2e,0x1c6c,0xc488,0xfedf,0xa95,0x1cb8,0xc426,0xff5e,0xf6b", 0 },
+	{ "0:pa5g40a0", "0x1d24,0xd717,0x22f8,0x23fe,0x1c18,0xd4bc,0xf510,0x142,0x1c26,0xd57c,0xf51a,0x2e1,0x1c40,0xd556,0xf556,0x59f,0x1c37,0xd70b,0xf46c,0x1b0", 0 },
+	{ "0:pa5gbw40a0", "0x0,0x0,0x0,0x1111,0x1111,0x1111,0x1111,0xffff,0xffff,0xffff,0xffff,0xffff", 0 },
+	{ "0:pa5gbw80a0", "0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff", 0 },
+	{ "0:pa5gbw4080a0", "0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff", 0 },
+	{ "0:pa5g80a0", "0x1b7b,0xd023,0xf801,0x0,0x1b7d,0xcfdd,0xf833,0x0,0x1bee,0xcc6e,0xfa82,0xac2,0x1bfe,0xd091,0xf8f8,0xf5c,0x1c2c,0xd035,0xf934,0x108f", 0 },
+	{ "0:pa5ga1", "0x1cab,0xd612,0x20a4,0x23d6,0x1b8a,0xc732,0xfd18,0x12d,0x1c44,0xc3c3,0xff8d,0xce1,0x1c76,0xc38e,0xfffc,0x1292,0x1cb0,0xc3b1,0x0,0x13c4", 0 },
+	{ "0:pa5g40a1", "0x1ceb,0xd6cd,0x2227,0x23ee,0x1c1d,0xd35a,0xf5b7,0x0,0x1c54,0xd392,0xf64d,0x664,0x1c62,0xd402,0xf640,0x82f,0x1c76,0xd486,0xf60e,0x76d", 0 },
+	{ "0:pa5gbw4080a1", "0xffff,0x7bde,0xa9bc,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff", 0 },
+	{ "0:pa5g80a1", "0x1b63,0xce8d,0xf8f7,0x0,0x1b5d,0xcedf,0xf8e4,0x0,0x1bd7,0xcbdc,0xfb03,0xb9f,0x1c19,0xcf5b,0xf9c5,0x1067,0x1c31,0xcf44,0xf9dd,0x11c3", 0 },
+	{ "0:pa5ga2", "0x1cc5,0xd58b,0x2128,0x23e8,0x1beb,0xc321,0xfeff,0x0,0x1ba1,0xc7f3,0xfd06,0x131,0x1bbf,0xc844,0xfce8,0x132,0x1c9b,0xc2fe,0xffff,0xd50", 0 },
+	{ "0:pa5g40a2", "0x1d18,0xd6dd,0x233a,0x240f,0x1c14,0xd2d1,0xf5df,0x0,0x1c35,0xd395,0xf5dc,0xc2,0x1c3d,0xd44d,0xf5ab,0x259,0x1c78,0xd4b4,0xf597,0x329", 0 },
+	{ "0:pa5g80a2", "0x1b5c,0xce4b,0xf8f3,0x0,0x1b7a,0xcda7,0xf96d,0x0,0x1bc7,0xcbc4,0xfa89,0x1fc,0x1c15,0xce78,0xfa0e,0xee7,0x1c21,0xcf67,0xf975,0xc6f", 0 },
+	{ "0:pa5ga3", "0x1ce2,0xd631,0x2166,0x23ed,0x1924,0xc6f7,0xfdc6,0x0,0x1936,0xc789,0xfdd5,0x0,0x196d,0xc732,0xfe05,0x0,0x19b0,0xc669,0xfe52,0x0", 0 },
+	{ "0:pa5g40a3", "0x1d3e,0xd6b3,0x226f,0x23ec,0x1972,0xd7d6,0xf3fc,0x0,0x1988,0xd856,0xf41c,0x0,0x19af,0xd80e,0xf451,0x0,0x1a00,0xd743,0xf494,0x0", 0 },
+	{ "0:pa5g80a3", "0x1933,0xd0fe,0xf81f,0x0,0x1937,0xd10e,0xf849,0x0,0x1924,0xd27b,0xf7e7,0x0,0x1974,0xd21c,0xf81a,0x0,0x1994,0xd202", 0 },
+	{ "0:rxgains5gelnagaina0", "1", 0 },
+	{ "0:rxgains5gtrisoa0", "5", 0 },
+	{ "0:rxgains5gtrelnabypa0", "1", 0 },
+	{ "0:rxgains5gelnagaina1", "1", 0 },
+	{ "0:rxgains5gtrisoa1", "5", 0 },
+	{ "0:rxgains5gtrelnabypa1", "1", 0 },
+	{ "0:rxgains5gelnagaina2", "1", 0 },
+	{ "0:rxgains5gtrisoa2", "5", 0 },
+	{ "0:rxgains5gtrelnabypa2", "1", 0 },
+	{ "0:mcsbw205glpo", "2573623296", 0 },
+	{ "0:mcsbw405glpo", "2573623842", 0 },
+	{ "0:mcsbw805glpo", "2573623842", 0 },
+	{ "0:mcsbw205gmpo", "2573623296", 0 },
+	{ "0:mcsbw405gmpo", "2573623842", 0 },
+	{ "0:mcsbw805gmpo", "2573624388", 0 },
+	{ "0:mcsbw205ghpo", "2858835968", 0 },
+	{ "0:mcsbw405ghpo", "2858836514", 0 },
+	{ "0:mcsbw805ghpo", "2858837060", 0 },
+	{ "0:mcslr5glpo", "0", 0 },
+	{ "0:mcslr5gmpo", "0", 0 },
+	{ "0:mcslr5ghpo", "0", 0 },
+	{ "0:ulbpdoffs5gb0a0", "65535", 0 },
+	{ "0:ulbpdoffs5gb0a1", "65535", 0 },
+	{ "0:ulbpdoffs5gb0a2", "65535", 0 },
+	{ "0:ulbpdoffs5gb0a3", "65535", 0 },
+	{ "0:ulbpdoffs5gb1a0", "65535", 0 },
+	{ "0:ulbpdoffs5gb1a1", "65535", 0 },
+	{ "0:ulbpdoffs5gb1a2", "65535", 0 },
+	{ "0:ulbpdoffs5gb1a3", "65535", 0 },
+	{ "0:ulbpdoffs5gb2a0", "65535", 0 },
+	{ "0:ulbpdoffs5gb2a1", "65535", 0 },
+	{ "0:ulbpdoffs5gb2a2", "65535", 0 },
+	{ "0:ulbpdoffs5gb2a3", "65535", 0 },
+	{ "0:ulbpdoffs5gb3a0", "65535", 0 },
+	{ "0:ulbpdoffs5gb3a1", "65535", 0 },
+	{ "0:ulbpdoffs5gb3a2", "65535", 0 },
+	{ "0:ulbpdoffs5gb3a3", "65535", 0 },
+	{ "0:ulbpdoffs5gb4a0", "65535", 0 },
+	{ "0:ulbpdoffs5gb4a1", "65535", 0 },
+	{ "0:ulbpdoffs5gb4a2", "65535", 0 },
+	{ "0:ulbpdoffs5gb4a3", "65535", 0 },
+	{ "0:mcs1024qam5glpo", "4294967295", 0 },
+	{ "0:mcs1024qam5gmpo", "4294967295", 0 },
+	{ "0:mcs1024qam5ghpo", "4294967295", 0 },
+	{ "0:mcs1024qam5gx1po", "4294967295", 0 },
+	{ "0:mcs1024qam5gx2po", "4294967295", 0 },
+	{ "0:mcsbw1605glpo", "4294967295", 0 },
+	{ "0:mcsbw1605gmpo", "4294967295", 0 },
+	{ "0:mcsbw1605ghpo", "4294967295", 0 },
+	{ "0:mcsbw1605gx1po", "4294967295", 0 },
+	{ "0:mcsbw1605gx2po", "4294967295", 0 },
+	{ "0:pdoffset20in40m5gb0", "65535", 0 },
+	{ "0:pdoffset20in40m5gb1", "65535", 0 },
+	{ "0:pdoffset20in40m5gb2", "65535", 0 },
+	{ "0:pdoffset20in40m5gb3", "65535", 0 },
+	{ "0:pdoffset20in40m5gb4", "65535", 0 },
+	{ "0:pdoffset40in80m5gb0", "65535", 0 },
+	{ "0:pdoffset40in80m5gb1", "65535", 0 },
+	{ "0:pdoffset40in80m5gb2", "65535", 0 },
+	{ "0:pdoffset40in80m5gb3", "65535", 0 },
+	{ "0:pdoffset40in80m5gb4", "65535", 0 },
+	{ "0:pdoffset20in80m5gb0", "28539", 0 },
+	{ "0:pdoffset20in80m5gb1", "28539", 0 },
+	{ "0:pdoffset20in80m5gb2", "28539", 0 },
+	{ "0:pdoffset20in80m5gb3", "28539", 0 },
+	{ "0:pdoffset20in80m5gb4", "28539", 0 },
+	{ "0:pdoffset20in40m5gcore3_1", "65535", 0 },
+	{ "0:pdoffset20in80m5gcore3_1", "65535", 0 },
+	{ "0:pdoffset40in80m5gcore3_1", "65535", 0 },
+	{ "0:mcsbw205gx1po", "2858835968", 0 },
+	{ "0:mcsbw405gx1po", "2858836514", 0 },
+	{ "0:mcsbw805gx1po", "2858837060", 0 },
+	{ "0:mcslr5gx1po", "0", 0 },
+	{ "0:sb20in80and160hr5gx1po", "0", 0 },
+	{ "0:sb40and80hr5gx1po", "0", 0 },
+	{ "0:mcsbw205gx2po", "2858835968", 0 },
+	{ "0:mcsbw405gx2po", "2858836514", 0 },
+	{ "0:mcsbw805gx2po", "2858837060", 0 },
+	{ "0:mcslr5gx2po", "0", 0 },
+	{ "0:sb40and80lr5gx2po", "0", 0 },
+	{ "0:sb20in80and160hr5gx2po", "0", 0 },
+	{ "0:sb40and80hr5gx2po", "0", 0 },
+	{ "0:sb20in80and160lr5gx2po", "0", 0 },
+	{ "0:rxgains5gmelnagaina0", "4", 0 },
+	{ "0:rxgains5gmelnagaina1", "4", 0 },
+	{ "0:rxgains5gmelnagaina2", "4", 0 },
+	{ "0:rxgains5gmtrisoa0", "7", 0 },
+	{ "0:rxgains5gmtrisoa1", "7", 0 },
+	{ "0:rxgains5gmtrisoa2", "7", 0 },
+	{ "0:rxgains5gmtrelnabypa0", "1", 0 },
+	{ "0:rxgains5gmtrelnabypa1", "1", 0 },
+	{ "0:rxgains5gmtrelnabypa2", "1", 0 },
+	{ "0:rxgains5ghelnagaina0", "1", 0 },
+	{ "0:rxgains5ghelnagaina1", "1", 0 },
+	{ "0:rxgains5ghelnagaina2", "1", 0 },
+	{ "0:rxgains5ghtrisoa0", "5", 0 },
+	{ "0:rxgains5ghtrisoa1", "5", 0 },
+	{ "0:rxgains5ghtrisoa2", "5", 0 },
+	{ "0:rxgains5ghtrelnabypa0", "1", 0 },
+	{ "0:rxgains5ghtrelnabypa1", "1", 0 },
+	{ "0:rxgains5ghtrelnabypa2", "1", 0 },
+	{ "0:eu_edthresh5g", "255", 0 },
+	{ "0:rxgains5gmelnagaina3", "4", 0 },
+	{ "0:rxgains5gmtrisoa3", "7", 0 },
+	{ "0:rxgains5gmtrelnabypa3", "1", 0 },
+	{ "0:rxgains5ghelnagaina3", "1", 0 },
+	{ "0:rxgains5ghtrisoa3", "5", 0 },
+	{ "0:rxgains5ghtrelnabypa3", "1", 0 },
+	{ "0:pdoffset20in40m5gcore3", "4294967295", 0 },
+	{ "0:pdoffset40in80m5gcore3", "4294967295", 0 },
+	{ "0:pdoffset20in80m5gcore3", "4294967295", 0 },
+	{ "devpath1", "pci/2/1", 0 },
+	{ "1:sromrev", "13", 0 },
+	{ "1:boardflags", "0x10001000", 0 },
+	{ "1:boardflags2", "0x4", 0 },
+	{ "1:boardflags3", "0x0", 0 },
+	{ "1:boardflags4", "0xe", 0 },
+	{ "1:devid", "0x43c5", 0 },
+	{ "1:subvid", "0x14e4", 0 },
+	{ "1:boardnum", "53259", 0 },
+	//{ "1:macaddr", "00:90:4c:1f:d0:0b", 0 },
+	//{ "1:ccode", "ALL", 0 },
+	//{ "1:regrev", "0", 0 },
+	{ "1:aa5g", "15", 0 },
+	{ "1:agbg0", "133", 0 },
+	{ "1:agbg1", "133", 0 },
+	{ "1:agbg2", "133", 0 },
+	{ "1:aga0", "71", 0 },
+	{ "1:aga1", "71", 0 },
+	{ "1:aga2", "71", 0 },
+	{ "1:antswitch", "0", 0 },
+	{ "1:femctrl", "2", 0 },
+	{ "1:tssiposslope5g", "1", 0 },
+	{ "1:epagain5g", "0", 0 },
+	{ "1:pdgain5g", "2", 0 },
+	{ "1:tworangetssi5g", "0", 0 },
+	{ "1:papdcap5g", "0", 0 },
+	{ "1:gainctrlsph", "0", 0 },
+	{ "1:tempthresh", "120", 0 },
+	{ "1:tempoffset", "255", 0 },
+	{ "1:rawtempsense", "0x1ff", 0 },
+	{ "1:measpower", "0x7f", 0 },
+	{ "1:tempsense_slope", "0xff", 0 },
+	{ "1:tempcorrx", "0x3f", 0 },
+	{ "1:tempsense_option", "0x3", 0 },
+	{ "1:xtalfreq", "40000", 0 },
+	{ "1:phycal_tempdelta", "40", 0 },
+	{ "1:temps_period", "1", 0 },
+	{ "1:temps_hysteresis", "5", 0 },
+	{ "1:measpower1", "0x7f", 0 },
+	{ "1:measpower2", "0x7e", 0 },
+	{ "1:tssifloor5g", "0x0,0x3bb,0x3bd,0x3bd", 0 },
+	{ "1:pdoffset40ma0", "46011", 0 },
+	{ "1:pdoffset40ma1", "46011", 0 },
+	{ "1:pdoffset40ma2", "46011", 0 },
+	{ "1:pdoffset80ma0", "46011", 0 },
+	{ "1:pdoffset80ma1", "1058", 0 },
+	{ "1:pdoffset80ma2", "65", 0 },
+	{ "1:subband5gver", "0x5", 0 },
+	{ "1:paparambwver", "0", 0 },
+	{ "1:cckbw202gpo", "0", 0 },
+	{ "1:cckbw20ul2gpo", "0", 0 },
+	{ "1:mcsbw202gpo", "0", 0 },
+	{ "1:mcsbw402gpo", "0", 0 },
+	{ "1:dot11agofdmhrbw202gpo", "0", 0 },
+	{ "1:ofdmlrbw202gpo", "0", 0 },
+	{ "1:sb20in40lrpo", "0", 0 },
+	{ "1:sb20in80and160lr5glpo", "0", 0 },
+	{ "1:sb40and80lr5glpo", "0", 0 },
+	{ "1:sb20in80and160lr5gmpo", "0", 0 },
+	{ "1:sb40and80lr5gmpo", "0", 0 },
+	{ "1:sb20in80and160lr5ghpo", "0", 0 },
+	{ "1:sb40and80lr5ghpo", "0", 0 },
+	{ "1:dot11agduphrpo", "0", 0 },
+	{ "1:dot11agduplrpo", "0", 0 },
+	{ "1:sar5g", "15", 0 },
+	{ "1:noiselvl5ga0", "31,31,31,31", 0 },
+	{ "1:noiselvl5ga1", "31,31,31,31", 0 },
+	{ "1:noiselvl5ga2", "31,31,31,31", 0 },
+	//{ "1:rpcal5gb0", "0", 0 },
+	//{ "1:rpcal5gb1", "0", 0 },
+	//{ "1:rpcal5gb2", "0", 0 },
+	//{ "1:rpcal5gb3", "0", 0 },
+	{ "1:txidxcap5g", "0", 0 },
+	//{ "1:rpcal5gb4", "0", 0 },
+	{ "1:sb20in40hrlrpox", "0", 0 },
+	{ "1:pdoffsetcckma0", "0", 0 },
+	{ "1:pdoffsetcckma1", "0", 0 },
+	{ "1:pdoffsetcckma2", "0", 0 },
+	{ "1:pdoffsetcck", "65535", 0 },
+	{ "1:pdoffset20in40m5gb0", "31677", 0 },
+	{ "1:pdoffset20in40m5gb1", "31677", 0 },
+	{ "1:pdoffset20in40m5gb2", "30653", 0 },
+	{ "1:pdoffset20in40m5gb3", "30653", 0 },
+	{ "1:pdoffset20in40m5gb4", "30653", 0 },
+	{ "1:pdoffset40in80m5gb0", "0", 0 },
+	{ "1:pdoffset40in80m5gb1", "1056", 0 },
+	{ "1:pdoffset40in80m5gb2", "1088", 0 },
+	{ "1:pdoffset40in80m5gb3", "2080", 0 },
+	{ "1:pdoffset40in80m5gb4", "2113", 0 },
+	{ "1:pdoffset20in80m5gb0", "31709", 0 },
+	{ "1:pdoffset20in80m5gb1", "32767", 0 },
+	{ "1:pdoffset20in80m5gb2", "31710", 0 },
+	{ "1:pdoffset20in80m5gb3", "31710", 0 },
+	{ "1:pdoffset20in80m5gb4", "31710", 0 },
+	{ "1:pdoffset20in40m5gcore3_1", "957", 0 },
+	{ "1:pdoffset20in80m5gcore3_1", "990", 0 },
+	{ "1:pdoffset40in80m5gcore3_1", "65", 0 },
+	{ "1:pdoffset20in40m5gcore3", "62748605", 0 },
+	{ "1:pdoffset40in80m5gcore3", "4260898", 0 },
+	{ "1:pdoffset20in80m5gcore3", "64912382", 0 },
+	{ "1:mcsbw205gx1po", "4001923616", 0 },
+	{ "1:mcsbw405gx1po", "4001923616", 0 },
+	//{ "1:mcsbw805gx1po", "4001923616", 0 },
+	{ "1:mcsbw205gx2po", "4001923616", 0 },
+	{ "1:mcsbw405gx2po", "4001923616", 0 },
+	//{ "1:mcsbw805gx2po", "4001923616", 0 },
+	{ "1:mcslr5gx1po", "0", 0 },
+	{ "1:sb20in80and160hr5gx1po", "0", 0 },
+	{ "1:sb40and80hr5gx1po", "0", 0 },
+	{ "1:mcslr5gx2po", "0", 0 },
+	{ "1:sb40and80lr5gx2po", "0", 0 },
+	{ "1:sb20in80and160hr5gx2po", "0", 0 },
+	{ "1:sb40and80hr5gx2po", "0", 0 },
+	{ "1:sb20in80and160lr5gx2po", "0", 0 },
+	{ "1:gpdn", "0xffffffff", 0 },
+	{ "1:eu_edthresh5g", "255", 0 },
+	{ "1:agbg3", "5", 0 },
+	{ "1:aga3", "133", 0 },
+	{ "1:noiselvl5ga3", "31,31,31,31", 0 },
+	{ "1:ulbpdoffs5gb0a0", "65535", 0 },
+	{ "1:ulbpdoffs5gb0a1", "65535", 0 },
+	{ "1:ulbpdoffs5gb0a2", "65535", 0 },
+	{ "1:ulbpdoffs5gb0a3", "65535", 0 },
+	{ "1:ulbpdoffs5gb1a0", "65535", 0 },
+	{ "1:ulbpdoffs5gb1a1", "65535", 0 },
+	{ "1:ulbpdoffs5gb1a2", "65535", 0 },
+	{ "1:ulbpdoffs5gb1a3", "65535", 0 },
+	{ "1:ulbpdoffs5gb2a0", "65535", 0 },
+	{ "1:ulbpdoffs5gb2a1", "65535", 0 },
+	{ "1:ulbpdoffs5gb2a2", "65535", 0 },
+	{ "1:ulbpdoffs5gb2a3", "65535", 0 },
+	{ "1:ulbpdoffs5gb3a0", "65535", 0 },
+	{ "1:ulbpdoffs5gb3a1", "65535", 0 },
+	{ "1:ulbpdoffs5gb3a2", "65535", 0 },
+	{ "1:ulbpdoffs5gb3a3", "65535", 0 },
+	{ "1:ulbpdoffs5gb4a0", "65535", 0 },
+	{ "1:ulbpdoffs5gb4a1", "65535", 0 },
+	{ "1:ulbpdoffs5gb4a2", "65535", 0 },
+	{ "1:ulbpdoffs5gb4a3", "65535", 0 },
+	{ "1:swctrlmap4_cfg", "1", 0 },
+	{ "1:swctrlmap4_TX2g_fem3to0", "0", 0 },
+	{ "1:swctrlmap4_RX2g_fem3to0", "0", 0 },
+	{ "1:swctrlmap4_RXByp2g_fem3to0", "0", 0 },
+	{ "1:swctrlmap4_misc2g_fem3to0", "0", 0 },
+	{ "1:swctrlmap4_TX5g_fem3to0", "26214", 0 },
+	{ "1:swctrlmap4_RX5g_fem3to0", "4369", 0 },
+	{ "1:swctrlmap4_RXByp5g_fem3to0", "13107", 0 },
+	{ "1:swctrlmap4_misc5g_fem3to0", "0", 0 },
+	{ "1:swctrlmap4_TX2g_fem7to4", "0", 0 },
+	{ "1:swctrlmap4_RX2g_fem7to4", "0", 0 },
+	{ "1:swctrlmap4_RXByp2g_fem7to4", "0", 0 },
+	{ "1:swctrlmap4_misc2g_fem7to4", "0", 0 },
+	{ "1:swctrlmap4_TX5g_fem7to4", "0", 0 },
+	{ "1:swctrlmap4_RX5g_fem7to4", "0", 0 },
+	{ "1:swctrlmap4_RXByp5g_fem7to4", "0", 0 },
+	{ "1:swctrlmap4_misc5g_fem7to4", "0", 0 },
+	{ "1:maxp5gb0a0", "96", 0 },
+	{ "1:maxp5gb1a0", "96", 0 },
+	{ "1:maxp5gb2a0", "96", 0 },
+	{ "1:maxp5gb3a0", "96", 0 },
+	{ "1:maxp5gb4a0", "96", 0 },
+	{ "1:maxp5gb0a1", "96", 0 },
+	{ "1:maxp5gb1a1", "96", 0 },
+	{ "1:maxp5gb2a1", "96", 0 },
+	{ "1:maxp5gb3a1", "96", 0 },
+	{ "1:maxp5gb4a1", "96", 0 },
+	{ "1:maxp5gb0a2", "96", 0 },
+	{ "1:maxp5gb1a2", "96", 0 },
+	{ "1:maxp5gb2a2", "96", 0 },
+	{ "1:maxp5gb3a2", "96", 0 },
+	{ "1:maxp5gb4a2", "96", 0 },
+	{ "1:maxp5gb0a3", "96", 0 },
+	{ "1:maxp5gb1a3", "96", 0 },
+	{ "1:maxp5gb2a3", "96", 0 },
+	{ "1:maxp5gb3a3", "96", 0 },
+	{ "1:maxp5gb4a3", "96", 0 },
+	{ "1:mcsbw205glpo", "0xccaa8862", 0 },
+	{ "1:mcsbw405glpo", "0xccaa8862", 0 },
+	//{ "1:mcsbw805glpo", "0xccaa8862", 0 },
+	{ "1:mcsbw1605glpo", "0xccaa8862", 0 },
+	{ "1:mcs1024qam5glpo", "0xeeeeeeee", 0 },
+	{ "1:mcslr5glpo", "0x4444", 0 },
+	{ "1:mcsbw205gmpo", "0xccaa8862", 0 },
+	{ "1:mcsbw405gmpo", "0xccaa8862", 0 },
+	//{ "1:mcsbw805gmpo", "0xccaa8862", 0 },
+	{ "1:mcsbw1605gmpo", "0xccaa8862", 0 },
+	{ "1:mcs1024qam5gmpo", "0xeeeeeeee", 0 },
+	{ "1:mcslr5gmpo", "0x4444", 0 },
+	{ "1:mcsbw205ghpo", "0xccaa8862", 0 },
+	{ "1:mcsbw405ghpo", "0xccaa8862", 0 },
+	//{ "1:mcsbw805ghpo", "0xccaa8862", 0 },
+	{ "1:mcsbw1605ghpo", "0xccaa8862", 0 },
+	{ "1:mcsbw1605gx1po", "0xccaa8862", 0 },
+	{ "1:mcsbw1605gx2po", "0xccaa8862", 0 },
+	{ "1:mcs1024qam5ghpo", "0xeeeeeeee", 0 },
+	{ "1:mcs1024qam5gx1po", "0xeeeeeeee", 0 },
+	{ "1:mcs1024qam5gx2po", "0xeeeeeeee", 0 },
+	{ "1:mcslr5ghpo", "0x4444", 0 },
+	{ "1:mcs8poexp", "0", 0 },
+	{ "1:mcs9poexp", "0", 0 },
+	{ "1:mcs10poexp", "0", 0 },
+	{ "1:mcs11poexp", "0", 0 },
+	{ "1:sb20in40hrpo", "0", 0 },
+	{ "1:sb20in80and160hr5glpo", "0", 0 },
+	{ "1:sb40and80hr5glpo", "0", 0 },
+	{ "1:sb20in80and160hr5gmpo", "0", 0 },
+	{ "1:sb40and80hr5gmpo", "0", 0 },
+	{ "1:sb20in80and160hr5ghpo", "0", 0 },
+	{ "1:sb40and80hr5ghpo", "0", 0 },
+	//{ "1:pa5ga0", "0x1e2f,0xc9a2,0xc9a2,0xc9a2,0x1e28,0xc89f,0x2369,0x2393,0x1e19,0xc94b,0x25b1,0x240e,0x1de8,0xc6a4,0x1e89,0x22e2,0x1dbc,0xc54f,0x1e4c,0x2304", 0 },
+	//{ "1:pa5g40a0", "0x1f17,0xd2ac,0x3aec,0x25fc,0x1f24,0xd3fb,0x3ded,0x2654,0x1edc,0xd851,0x487d,0x275a,0x1ed3,0xd46f,0x3ff4,0x2696,0x1ea9,0xd358,0x41bf,0x26ee", 0 },
+	//{ "1:pa5g80a0", "0x1fc5,0xdda2,0x4b70,0x26f9,0x1fa8,0xe03a,0x50a1,0x2772,0x1f93,0xdfd1,0x50cf,0x2779,0x1f8d,0xdd8f,0x4d83,0x2765,0x1f61,0xdb09,0x4aa3,0x273f", 0 },
+	//{ "1:pa5ga1", "0x1dd7,0xc766,0x221f,0x237e,0x1dc4,0xc7f8,0x22fd,0x23a5,0x1dc9,0xc860,0x2325,0x23a8,0x1da0,0xc6c8,0x1e8d,0x22df,0x1d8e,0xc65b,0x1f2f,0x232c", 0 },
+	//{ "1:pa5g40a1", "0x1e82,0xd57a,0x43a1,0x270e,0x1e87,0xd71a,0x4681,0x273f,0x1e78,0xd697,0x42c6,0x26d8,0x1e72,0xd394,0x3cab,0x265a,0x1e6f,0xd116,0x37c0,0x25e3", 0 },
+	//{ "1:pa5g80a1", "0x1f01,0xdfcd,0x522d,0x27af,0x1f18,0xdd68,0x4c14,0x273e,0x1ef2,0xde6b,0x4ee8,0x278a,0x1f0b,0xdaf3,0x471b,0x26fe,0x1ef9,0xd83d,0x431c,0x26c7", 0 },
+	//{ "1:pa5ga2", "0x1e2b,0xc851,0x24f1,0x23d3,0x1e31,0xc9ff,0x27fd,0x2451,0x1e42,0xca20,0x2791,0x2437,0x1e13,0xc8d1,0x242c,0x23ac,0x1dda,0xc938,0x26df,0x2427", 0 },
+	//{ "1:pa5g40a2", "0x1ec0,0xdac4,0x50b3,0x2807,0x1ef6,0xda38,0x4d94,0x27bd,0x1ec4,0xddc6,0x543b,0x281a,0x1ede,0xd8e1,0x4a5d,0x276d,0x1efc,0xd0de,0x3889,0x25c5", 0 },
+	//{ "1:pa5g80a2", "0x1f9d,0xe18b,0x51ae,0x2754,0x1fbf,0xdf13,0x4b5e,0x26e1,0x1f87,0xe071,0x4dd6,0x270b,0x1fa4,0xdf99,0x4f1c,0x2744,0x1fbf,0xd8f1,0x4323,0x2673", 0 },
+	//{ "1:pa5ga3", "0x1e2c,0xc9e2,0x282d,0x245c,0x1e2e,0xcb5b,0x2a14,0x2498,0x1e3e,0xca6e,0x27aa,0x2433,0x1e0b,0xc835,0x23aa,0x23bf,0x1dcd,0xc6d0,0x221f,0x2395", 0 },
+	//{ "1:pa5g40a3", "0x1ed4,0xd999,0x4c9c,0x27be,0x1ee9,0xdb17,0x4e7c,0x27d1,0x1ee8,0xda30,0x4b75,0x276c,0x1ef6,0xd489,0x3f53,0x2671,0x1eeb,0xcf2e,0x3527,0x25a1", 0 },
+	//{ "1:pa5g80a3", "0x1fac,0xe182,0x5211,0x276c,0x1f4c,0xe7be,0x5d6d,0x2843,0x1f8f,0xe325,0x5480,0x2791,0x1fb0,0xde51,0x4c9e,0x2733,0x1e50,0xda8b,0x490b,0x2703", 0 },
+	{ "1:rxgains5gelnagaina0", "3", 0 },
+	{ "1:rxgains5gelnagaina1", "3", 0 },
+	{ "1:rxgains5gelnagaina2", "3", 0 },
+	{ "1:rxgains5gelnagaina3", "3", 0 },
+	{ "1:rxgains5gtrisoa0", "6", 0 },
+	{ "1:rxgains5gtrisoa1", "6", 0 },
+	{ "1:rxgains5gtrisoa2", "6", 0 },
+	{ "1:rxgains5gtrisoa3", "6", 0 },
+	{ "1:rxgains5gtrelnabypa0", "1", 0 },
+	{ "1:rxgains5gtrelnabypa1", "1", 0 },
+	{ "1:rxgains5gtrelnabypa2", "1", 0 },
+	{ "1:rxgains5gtrelnabypa3", "1", 0 },
+	{ "1:rxgains5gmelnagaina0", "3", 0 },
+	{ "1:rxgains5gmelnagaina1", "3", 0 },
+	{ "1:rxgains5gmelnagaina2", "3", 0 },
+	{ "1:rxgains5gmelnagaina3", "3", 0 },
+	{ "1:rxgains5gmtrisoa0", "7", 0 },
+	{ "1:rxgains5gmtrisoa1", "7", 0 },
+	{ "1:rxgains5gmtrisoa2", "7", 0 },
+	{ "1:rxgains5gmtrisoa3", "7", 0 },
+	{ "1:rxgains5gmtrelnabypa0", "1", 0 },
+	{ "1:rxgains5gmtrelnabypa1", "1", 0 },
+	{ "1:rxgains5gmtrelnabypa2", "1", 0 },
+	{ "1:rxgains5gmtrelnabypa3", "1", 0 },
+	{ "1:rxgains5ghelnagaina0", "3", 0 },
+	{ "1:rxgains5ghelnagaina1", "3", 0 },
+	{ "1:rxgains5ghelnagaina2", "3", 0 },
+	{ "1:rxgains5ghelnagaina3", "3", 0 },
+	{ "1:rxgains5ghtrisoa0", "6", 0 },
+	{ "1:rxgains5ghtrisoa1", "6", 0 },
+	{ "1:rxgains5ghtrisoa2", "6", 0 },
+	{ "1:rxgains5ghtrisoa3", "6", 0 },
+	{ "1:rxgains5ghtrelnabypa0", "1", 0 },
+	{ "1:rxgains5ghtrelnabypa1", "1", 0 },
+	{ "1:rxgains5ghtrelnabypa2", "1", 0 },
+	{ "1:rxgains5ghtrelnabypa3", "1", 0 },
+	//{ "1:rxgainerr5ga0", "63,63,63,63", 0 },
+	//{ "1:rxgainerr5ga1", "31,31,31,31", 0 },
+	//{ "1:rxgainerr5ga2", "31,31,31,31", 0 },
+	//{ "1:rxgainerr5ga3", "31,31,31,31", 0 },
+	{ "1:ulbpdoffs2ga0", "65535", 0 },
+	{ "1:ulbpdoffs2ga1", "65535", 0 },
+	{ "1:ulbpdoffs2ga2", "65535", 0 },
+	{ "1:ulbpdoffs2ga3", "65535", 0 },
+	{ "1:pdoffset20in40m2g", "65535", 0 },
+	{ "1:pdoffset20in40m2gcore3", "65535", 0 },
+	{ "1:eu_edthresh2g", "255", 0 },
+	{ "1:rxgainerr2ga3", "31", 0 },
+	{ "1:mcs1024qam2gpo", "0", 0 },
+	{ "1:ulbpproffs2g", "65535", 0 },
+	{ "1:sar2g", "18", 0 },
+	{ "1:noiselvl2ga0", "31", 0 },
+	{ "1:noiselvl2ga1", "31", 0 },
+	{ "1:noiselvl2ga2", "31", 0 },
+	{ "1:rxgainerr2ga0", "63", 0 },
+	{ "1:rxgainerr2ga1", "31", 0 },
+	{ "1:rxgainerr2ga2", "31", 0 },
+	{ "1:rpcal2g", "0", 0 },
+	{ "1:txidxcap2g", "0", 0 },
+	{ "1:tssifloor2g", "0x3ff", 0 },
+	{ "1:pdoffset2g40ma0", "5", 0 },
+	{ "1:pdoffset2g40ma1", "8", 0 },
+	{ "1:pdoffset2g40ma2", "5", 0 },
+	{ "1:pdoffset2g40mvalid", "0", 0 },
+	{ "1:pa2gccka0", "0xffff,0xffff,0xffff", 0 },
+	{ "1:aa2g", "15", 0 },
+	{ "1:tssiposslope2g", "1", 0 },
+	{ "1:epagain2g", "0", 0 },
+	{ "1:pdgain2g", "2", 0 },
+	{ "1:tworangetssi2g", "0", 0 },
+	{ "1:papdcap2g", "0", 0 },
+	{ "1:maxp2ga1", "108", 0 },
+	{ "1:maxp2ga0", "108", 0 },
+	{ "1:maxp2ga2", "108", 0 },
+	{ "1:maxp2ga3", "108", 0 },
+	{ "1:pa2ga0", "0x1e5f,0xbd9b,0x0,0x0", 0 },
+	//{ "1:pa2g40a0", "0xffff,0xffff,0xffff,0xffff", 0 },
+	{ "1:pa2ga1", "0x1e02,0xbe29,0x0,0x0", 0 },
+	//{ "1:pa2g40a1", "0xffff,0xffff,0xffff,0xffff", 0 },
+	{ "1:pa2ga2", "0x1de0,0xbe0e,0x0,0x0", 0 },
+	//{ "1:pa2g40a2", "0xffff,0xffff,0xffff,0xffff", 0 },
+	{ "1:pa2ga3", "0x1bf7,0xbf37,0x0,0x0", 0 },
+	//{ "1:pa2g40a3", "0x1d6b,0xde8e,0x2fcb,0x25d7", 0 },
+	{ "1:rxgains2gelnagaina0", "3", 0 },
+	{ "1:rxgains2gtrisoa0", "7", 0 },
+	{ "1:rxgains2gtrelnabypa0", "1", 0 },
+	{ "1:rxgains2gelnagaina3", "3", 0 },
+	{ "1:rxgains2gtrisoa3", "7", 0 },
+	{ "1:rxgains2gtrelnabypa3", "1", 0 },
+	{ "1:rxgains2gelnagaina1", "3", 0 },
+	{ "1:rxgains2gtrisoa1", "7", 0 },
+	{ "1:rxgains2gtrelnabypa1", "1", 0 },
+	{ "1:rxgains2gelnagaina2", "3", 0 },
+	{ "1:rxgains2gtrisoa2", "7", 0 },
+	{ "1:rxgains2gtrelnabypa2", "1", 0 },
+	{ "1:noiselvl2ga3", "31", 0 },
+#endif
+	{ 0, 0, 0 }
+};
+#elif defined(RTAC5300)
+struct nvram_tuple bcm4360ac_defaults[] = {
+#if 0
+	{ "devpath0", "pcie/1/3", 0 },
+	{ "0:boardvendor", "0x14e4", 0 },
+	{ "0:venid", "0x14e4", 0 },
+	{ "0:devid", "0x43c4", 0 },
+	{ "0:sromrev", "13", 0 },
+	{ "0:boardflags", "0x00001000", 0 },
+	{ "0:boardflags2", "0x4", 0 },
+	{ "0:boardflags3", "0x0", 0 },
+	{ "0:boardflags4", "0xe", 0 },
+	{ "0:aa2g", "15", 0 },
+	{ "0:agbg0", "133", 0 },
+	{ "0:agbg1", "133", 0 },
+	{ "0:agbg2", "133", 0 },
+	{ "0:agbg3", "133", 0 },
+	{ "0:aga0", "71", 0 },
+	{ "0:aga1", "71", 0 },
+	{ "0:aga2", "71", 0 },
+	{ "0:aga3", "71", 0 },
+	{ "0:txchain", "0xf", 0 },
+	{ "0:rxchain", "0xf", 0 },
+	{ "0:antswitch", "0", 0 },
+	{ "0:femctrl", "2", 0 },
+	{ "0:tssiposslope2g", "1", 0 },
+	{ "0:epagain2g", "0", 0 },
+	{ "0:pdgain2g", "2", 0 },
+	{ "0:tworangetssi2g", "0", 0 },
+	{ "0:papdcap2g", "0", 0 },
+	{ "0:gainctrlsph", "0", 0 },
+	{ "0:tempthresh", "120", 0 },
+	{ "0:tempoffset", "255", 0 },
+	{ "0:rawtempsense", "0x1ff", 0 },
+	{ "0:tempsense_slope", "0xff", 0 },
+	{ "0:tempcorrx", "0x3f", 0 },
+	{ "0:tempsense_option", "0x3", 0 },
+	{ "0:phycal_tempdelta", "40", 0 },
+	{ "0:temps_period", "10", 0 },
+	{ "0:temps_hysteresis", "5", 0 },
+	{ "0:xtalfreq", "40000", 0 },
+	{ "0:measpower", "0x7f", 0 },
+	{ "0:measpower1", "0x7f", 0 },
+	{ "0:measpower2", "0x7e", 0 },
+	{ "0:tssifloor2g", "0x339", 0 },
+	{ "0:pdoffset2gcck", "0x0000", 0 },
+	{ "0:pdoffset20in40m2g", "0x7BDE", 0 },
+	{ "0:pdoffset20in40m2gcore3", "0x001E", 0 },
+	{ "0:pdoffset2g40ma0", "0", 0 },
+	{ "0:pdoffset2g40ma1", "0", 0 },
+	{ "0:pdoffset2g40ma2", "0", 0 },
+	{ "0:pdoffset2g40mvalid", "0", 0 },
+	{ "0:pdoffset40ma0", "43452", 0 },
+	{ "0:pdoffset40ma1", "43452", 0 },
+	{ "0:pdoffset40ma2", "43452", 0 },
+	{ "0:pdoffset80ma0", "43452", 0 },
+	{ "0:pdoffset80ma1", "2114", 0 },
+	{ "0:pdoffset80ma2", "99", 0 },
+	{ "0:subband5gver", "0x5", 0 },
+	{ "0:paparambwver", "0", 0 },
+	{ "0:mcs1024qam2gpo", "0x2222", 0 },
+	{ "0:mcs8poexp", "0", 0 },
+	{ "0:mcs9poexp", "0", 0 },
+	{ "0:mcs10poexp", "0x11111111", 0 },
+	{ "0:mcs11poexp", "0x11111111", 0 },
+	{ "0:ulbpproffs2g", "65535", 0 },
+	{ "0:ulbpdoffs2ga0", "65535", 0 },
+	{ "0:ulbpdoffs2ga1", "65535", 0 },
+	{ "0:ulbpdoffs2ga2", "65535", 0 },
+	{ "0:ulbpdoffs2ga3", "65535", 0 },
+	{ "0:cckbw202gpo", "0", 0 },
+	{ "0:cckbw20ul2gpo", "0", 0 },
+	{ "0:mcsbw202gpo", "0xCC774400", 0 },
+	{ "0:mcsbw402gpo", "0xCC774400", 0 },
+	{ "0:dot11agofdmhrbw202gpo", "7400", 0 },
+	{ "0:ofdmlrbw202gpo", "0", 0 },
+	{ "0:sb20in40hrpo", "0", 0 },
+	{ "0:sb20in40lrpo", "0", 0 },
+	{ "0:sb20in40hrlrpox", "0", 0 },
+	{ "0:dot11agduphrpo", "0", 0 },
+	{ "0:dot11agduplrpo", "0", 0 },
+	{ "0:dot11agduphrlrpox", "0", 0 },
+	{ "0:pcieingress_war", "15", 0 },
+	{ "0:sar2g", "18", 0 },
+	{ "0:noiselvl2ga0", "31", 0 },
+	{ "0:noiselvl2ga1", "31", 0 },
+	{ "0:noiselvl2ga2", "31", 0 },
+	{ "0:noiselvl2ga3", "31", 0 },
+	{ "0:rxgainerr2ga0", "63", 0 },
+	{ "0:rxgainerr2ga1", "31", 0 },
+	{ "0:rxgainerr2ga2", "31", 0 },
+	{ "0:rxgainerr2ga3", "31", 0 },
+	{ "0:gpdn", "0xffffffff", 0 },
+	{ "0:eu_edthresh2g", "255", 0 },
+	{ "0:maxp2ga0", "0x64", 0 },
+	{ "0:maxp2ga1", "0x64", 0 },
+	{ "0:maxp2ga2", "0x64", 0 },
+	{ "0:maxp2ga3", "0x64", 0 },
+	{ "0:pa5ga0", "0x1c46,0xd12d,0x1a64,0x22cb", 0 },
+	{ "0:pa5g40a0", "0x1c46,0xd12d,0x1a64,0x22cb", 0 },
+	{ "0:pa5ga1", "0x1bb5,0xd227,0x19e7,0x22d9", 0 },
+	{ "0:pa5g40a1", "0x1bb5,0xd227,0x19e7,0x22d9", 0 },
+	{ "0:pa5ga2", "0x1c3e,0xd325,0x1c24,0x2330", 0 },
+	{ "0:pa5g40a2", "0x1c3e,0xd325,0x1c24,0x2330", 0 },
+	{ "0:pa5ga3", "0x1c34,0xcfee,0x17c4,0x228a", 0 },
+	{ "0:pa5g40a3", "0x1c34,0xcfee,0x17c4,0x228a", 0 },
+	{ "0:pa2ga0", "0x1c0a,0xd723,0x1ee0,0x23ae", 0 },
+	{ "0:pa2g40a0", "0x1c88,0xda62,0x2135,0x23b7", 0 },
+	{ "0:pa2ga1", "0x1bfe,0xd4c6,0x1a68,0x2343", 0 },
+	{ "0:pa2g40a1", "0x1ca7,0xd616,0x1cc8,0x2360", 0 },
+	{ "0:pa2ga2", "0x1c3a,0xd3bc,0x1a1d,0x2346", 0 },
+	{ "0:pa2g40a2", "0x1ccc,0xd6fb,0x1d15,0x2352", 0 },
+	{ "0:pa2ga3", "0x1c73,0xd180,0x16c2,0x22d3", 0 },
+	{ "0:pa2g40a3", "0x1d4e,0xd2ed,0x1a5b,0x230e", 0 },
+	{ "0:rxgains2gelnagaina0", "3", 0 },
+	{ "0:rxgains2gelnagaina1", "3", 0 },
+	{ "0:rxgains2gelnagaina2", "3", 0 },
+	{ "0:rxgains2gelnagaina3", "3", 0 },
+	{ "0:rxgains2gtrisoa0", "7", 0 },
+	{ "0:rxgains2gtrisoa1", "7", 0 },
+	{ "0:rxgains2gtrisoa2", "7", 0 },
+	{ "0:rxgains2gtrisoa3", "7", 0 },
+	{ "0:rxgains2gtrelnabypa0", "1", 0 },
+	{ "0:rxgains2gtrelnabypa1", "1", 0 },
+	{ "0:rxgains2gtrelnabypa2", "1", 0 },
+	{ "0:rxgains2gtrelnabypa3", "1", 0 },
+	{ "0:rpcal2g", "0", 0 },
+	{ "0:txidxcap2g", "0", 0 },
+	{ "0:pdoffsetcckma0", "15", 0 },
+	{ "0:pdoffsetcckma1", "15", 0 },
+	{ "0:pdoffsetcckma2", "15", 0 },
+	{ "0:swctrlmap4_cfg", "0x5", 0 },
+	{ "0:swctrlmap4_TX2g_fem3to0", "0xaaaa", 0 },
+	{ "0:swctrlmap4_RX2g_fem3to0", "0x4444", 0 },
+	{ "0:swctrlmap4_RXByp2g_fem3to0", "0x6666", 0 },
+	{ "0:swctrlmap4_misc2g_fem3to0", "0x2222", 0 },
+	{ "0:swctrlmap4_TX5g_fem3to0", "0x0", 0 },
+	{ "0:swctrlmap4_RX5g_fem3to0", "0x0", 0 },
+	{ "0:swctrlmap4_RXByp5g_fem3to0", "0x0", 0 },
+	{ "0:swctrlmap4_misc5g_fem3to0", "0x0", 0 },
+	{ "0:swctrlmap4_TX2g_fem7to4", "0", 0 },
+	{ "0:swctrlmap4_RX2g_fem7to4", "0", 0 },
+	{ "0:swctrlmap4_RXByp2g_fem7to4", "0", 0 },
+	{ "0:swctrlmap4_misc2g_fem7to4", "0", 0 },
+	{ "0:swctrlmap4_TX5g_fem7to4", "0", 0 },
+	{ "0:swctrlmap4_RX5g_fem7to4", "0", 0 },
+	{ "0:swctrlmap4_RXByp5g_fem7to4", "0", 0 },
+	{ "0:swctrlmap4_misc5g_fem7to4", "0", 0 },
+	{ "0:srom13sig", "0x4D55", 0 },
+	{ "1:sromrev", "13", 0 },
+	{ "devpath1", "pcie/1/4", 0 },
+	{ "1:boardrev", "0x1105", 0 },
+	{ "1:boardvendor", "0x14e4", 0 },
+	{ "1:devid", "0x43c5", 0 },
+	{ "1:venid", "0x14e4", 0 },
+	{ "1:boardflags", "0x10000000", 0 },
+	{ "1:boardflags2", "0x4", 0 },
+	{ "1:boardflags3", "0x0", 0 },
+	{ "1:boardflags4", "0xE", 0 },
+	{ "1:aa5g", "15", 0 },
+	{ "1:agbg0", "133", 0 },
+	{ "1:agbg1", "133", 0 },
+	{ "1:agbg2", "133", 0 },
+	{ "1:agbg3", "5", 0 },
+	{ "1:aga0", "71", 0 },
+	{ "1:aga1", "71", 0 },
+	{ "1:aga2", "71", 0 },
+	{ "1:aga3", "133", 0 },
+	{ "1:txchain", "0xf", 0 },
+	{ "1:rxchain", "0xf", 0 },
+	{ "1:antswitch", "0", 0 },
+	{ "1:femctrl", "2", 0 },
+	{ "1:tssiposslope5g", "1", 0 },
+	{ "1:epagain5g", "0", 0 },
+	{ "1:pdgain5g", "2", 0 },
+	{ "1:tworangetssi5g", "0", 0 },
+	{ "1:papdcap5g", "0", 0 },
+	{ "1:gainctrlsph", "0", 0 },
+	{ "1:tempthresh", "120", 0 },
+	{ "1:tempoffset", "255", 0 },
+	{ "1:rawtempsense", "0x1ff", 0 },
+	{ "1:tempsense_slope", "0xff", 0 },
+	{ "1:tempcorrx", "0x3f", 0 },
+	{ "1:tempsense_option", "0x3", 0 },
+	{ "1:phycal_tempdelta", "40", 0 },
+	{ "1:temps_period", "10", 0 },
+	{ "1:temps_hysteresis", "5", 0 },
+	{ "1:xtalfreq", "40000", 0 },
+	{ "1:measpower", "0x7f", 0 },
+	{ "1:measpower1", "0x7f", 0 },
+	{ "1:measpower2", "0x7e", 0 },
+	{ "1:tssifloor5g", "0x0,0x3ff,0x335,0x318", 0 },
+	{ "1:subband5gver", "0x5", 0 },
+	{ "1:paparambwver", "0", 0 },
+	{ "1:pdoffset20in40m5gcore3", "0x77BD", 0 },
+	{ "1:pdoffset20in40m5gcore3_1", "0x03BD", 0 },
+	{ "1:pdoffset40in80m5gcore3", "0x0422", 0 },
+	{ "1:pdoffset40in80m5gcore3_1", "0x0041", 0 },
+	{ "1:pdoffset20in80m5gcore3", "0x7BFE", 0 },
+	{ "1:pdoffset20in80m5gcore3_1", "0x03DE", 0 },
+	{ "1:mcs1024qam5glpo", "0xEEEEEEEE", 0 },
+	{ "1:mcs1024qam5gmpo", "0xEEEEEEEE", 0 },
+	{ "1:mcs1024qam5ghpo", "0x66666666", 0 },
+	{ "1:mcs1024qam5gx1po", "0x66666666", 0 },
+	{ "1:mcs1024qam5gx2po", "0x66666666", 0 },
+	{ "1:mcs8poexp", "0", 0 },
+	{ "1:mcs9poexp", "0", 0 },
+	{ "1:mcs10poexp", "0xF8F8F8F8", 0 },
+	{ "1:mcs11poexp", "0xF8F8F8F8", 0 },
+	{ "1:ulbpproffs5gb0", "0", 0 },
+	{ "1:ulbpproffs5gb1", "0", 0 },
+	{ "1:ulbpproffs5gb2", "0", 0 },
+	{ "1:ulbpproffs5gb3", "0", 0 },
+	{ "1:ulbpproffs5gb4", "0", 0 },
+	{ "1:ulbpdoffs5gb0a0", "65535", 0 },
+	{ "1:ulbpdoffs5gb1a0", "65535", 0 },
+	{ "1:ulbpdoffs5gb2a0", "65535", 0 },
+	{ "1:ulbpdoffs5gb3a0", "65535", 0 },
+	{ "1:ulbpdoffs5gb4a0", "65535", 0 },
+	{ "1:ulbpdoffs5gb0a1", "65535", 0 },
+	{ "1:ulbpdoffs5gb1a1", "65535", 0 },
+	{ "1:ulbpdoffs5gb2a1", "65535", 0 },
+	{ "1:ulbpdoffs5gb3a1", "65535", 0 },
+	{ "1:ulbpdoffs5gb4a1", "65535", 0 },
+	{ "1:ulbpdoffs5gb0a2", "65535", 0 },
+	{ "1:ulbpdoffs5gb1a2", "65535", 0 },
+	{ "1:ulbpdoffs5gb2a2", "65535", 0 },
+	{ "1:ulbpdoffs5gb3a2", "65535", 0 },
+	{ "1:ulbpdoffs5gb4a2", "65535", 0 },
+	{ "1:ulbpdoffs5gb0a3", "65535", 0 },
+	{ "1:ulbpdoffs5gb1a3", "65535", 0 },
+	{ "1:ulbpdoffs5gb2a3", "65535", 0 },
+	{ "1:ulbpdoffs5gb3a3", "65535", 0 },
+	{ "1:ulbpdoffs5gb4a3", "65535", 0 },
+	{ "1:mcsbw205glpo", "0xAA888220", 0 },
+	{ "1:mcsbw405glpo", "0xAA888220", 0 },
+	{ "1:mcsbw805glpo", "0xAA888220", 0 },
+	{ "1:mcsbw1605glpo", "0xFFFFFFFF ", 0 },
+	{ "1:mcsbw205gmpo", "0xAA888220", 0 },
+	{ "1:mcsbw405gmpo", "0xAA888220", 0 },
+	{ "1:mcsbw805gmpo", "0xAA888220", 0 },
+	{ "1:mcsbw1605gmpo", "0xFFFFFFFF", 0 },
+	{ "1:mcsbw205ghpo", "0xEE888220", 0 },
+	{ "1:mcsbw405ghpo", "0xEE888220", 0 },
+	{ "1:mcsbw805ghpo", "0xEE888220", 0 },
+	{ "1:mcsbw1605ghpo", "0xFFFFFFFF", 0 },
+	{ "1:mcsbw205gx1po", "0xEE888220", 0 },
+	{ "1:mcsbw405gx1po", "0xEE888220", 0 },
+	{ "1:mcsbw805gx1po", "0xEE888220", 0 },
+	{ "1:mcsbw1605gx1po", "0xFFFFFFFF", 0 },
+	{ "1:mcsbw205gx2po", "0xEE888220", 0 },
+	{ "1:mcsbw405gx2po", "0xEE888220", 0 },
+	{ "1:mcsbw805gx2po", "0xEE888220", 0 },
+	{ "1:mcsbw1605gx2po", "0xFFFFFFFF", 0 },
+	{ "1:mcslr5glpo", "0", 0 },
+	{ "1:mcslr5gmpo", "0", 0 },
+	{ "1:mcslr5ghpo", "0", 0 },
+	{ "1:mcslr5gx1po", "0", 0 },
+	{ "1:mcslr5gx2po", "0", 0 },
+	{ "1:sb20in40hrpo", "0", 0 },
+	{ "1:sb20in40lrpo", "0", 0 },
+	{ "1:sb20in40hrlrpox", "0", 0 },
+	{ "1:dot11agduphrpo", "0", 0 },
+	{ "1:dot11agduplrpo", "0", 0 },
+	{ "1:dot11agduphrlrpox", "0", 0 },
+	{ "1:sb40and80hr5glpo", "0", 0 },
+	{ "1:sb40and80hr5gmpo", "0", 0 },
+	{ "1:sb40and80hr5ghpo", "0", 0 },
+	{ "1:sb40and80hr5gx1po", "0", 0 },
+	{ "1:sb40and80hr5gx2po", "0", 0 },
+	{ "1:sb20in80and160hr5glpo", "0", 0 },
+	{ "1:sb20in80and160hr5gmpo", "0", 0 },
+	{ "1:sb20in80and160hr5ghpo", "0", 0 },
+	{ "1:sb20in80and160hr5gx1po", "0", 0 },
+	{ "1:sb20in80and160hr5gx2po", "0", 0 },
+	{ "1:sb40and80lr5glpo", "0", 0 },
+	{ "1:sb40and80lr5gmpo", "0", 0 },
+	{ "1:sb40and80lr5ghpo", "0", 0 },
+	{ "1:sb40and80lr5gx1po", "0", 0 },
+	{ "1:sb40and80lr5gx2po", "0", 0 },
+	{ "1:sb20in80and160lr5glpo", "0", 0 },
+	{ "1:sb20in80and160lr5gmpo", "0", 0 },
+	{ "1:sb20in80and160lr5ghpo", "0", 0 },
+	{ "1:sb20in80and160lr5gx1po", "0", 0 },
+	{ "1:sb20in80and160lr5gx2po", "0", 0 },
+	{ "1:pcieingress_war", "15", 0 },
+	{ "1:sar5g", "15", 0 },
+	{ "1:noiselvl5ga0", "31,31,31,31", 0 },
+	{ "1:noiselvl5ga1", "31,31,31,31", 0 },
+	{ "1:noiselvl5ga2", "31,31,31,31", 0 },
+	{ "1:noiselvl5ga3", "31,31,31,31", 0 },
+	{ "1:rxgainerr5ga0", "63,63,63,63", 0 },
+	{ "1:rxgainerr5ga1", "31,31,31,31", 0 },
+	{ "1:rxgainerr5ga2", "31,31,31,31", 0 },
+	{ "1:rxgainerr5ga3", "31,31,31,31", 0 },
+	{ "1:rxgains5gmelnagaina0", "3", 0 },
+	{ "1:rxgains5gmelnagaina1", "3", 0 },
+	{ "1:rxgains5gmelnagaina2", "3", 0 },
+	{ "1:rxgains5gmelnagaina3", "3", 0 },
+	{ "1:rxgains5gmtrisoa0", "6", 0 },
+	{ "1:rxgains5gmtrisoa1", "6", 0 },
+	{ "1:rxgains5gmtrisoa2", "6", 0 },
+	{ "1:rxgains5gmtrisoa3", "6", 0 },
+	{ "1:rxgains5gmtrelnabypa0", "1", 0 },
+	{ "1:rxgains5gmtrelnabypa1", "1", 0 },
+	{ "1:rxgains5gmtrelnabypa2", "1", 0 },
+	{ "1:rxgains5gmtrelnabypa3", "1", 0 },
+	{ "1:rxgains5ghelnagaina0", "3", 0 },
+	{ "1:rxgains5ghelnagaina1", "3", 0 },
+	{ "1:rxgains5ghelnagaina2", "3", 0 },
+	{ "1:rxgains5ghelnagaina3", "3", 0 },
+	{ "1:rxgains5ghtrisoa0", "6", 0 },
+	{ "1:rxgains5ghtrisoa1", "6", 0 },
+	{ "1:rxgains5ghtrisoa2", "6", 0 },
+	{ "1:rxgains5ghtrisoa3", "6", 0 },
+	{ "1:rxgains5ghtrelnabypa0", "1", 0 },
+	{ "1:rxgains5ghtrelnabypa1", "1", 0 },
+	{ "1:rxgains5ghtrelnabypa2", "1", 0 },
+	{ "1:rxgains5ghtrelnabypa3", "1", 0 },
+	{ "1:gpdn", "0xffffffff", 0 },
+	{ "1:eu_edthresh5g", "255", 0 },
+	{ "1:rxgains5gelnagaina0", "3", 0 },
+	{ "1:rxgains5gelnagaina1", "3", 0 },
+	{ "1:rxgains5gelnagaina2", "3", 0 },
+	{ "1:rxgains5gelnagaina3", "3", 0 },
+	{ "1:rxgains5gtrisoa0", "6", 0 },
+	{ "1:rxgains5gtrisoa1", "6", 0 },
+	{ "1:rxgains5gtrisoa2", "6", 0 },
+	{ "1:rxgains5gtrisoa3", "6", 0 },
+	{ "1:rxgains5gtrelnabypa0", "1", 0 },
+	{ "1:rxgains5gtrelnabypa1", "1", 0 },
+	{ "1:rxgains5gtrelnabypa2", "1", 0 },
+	{ "1:rxgains5gtrelnabypa3", "1", 0 },
+	{ "1:maxp5gb0a0", "0x64", 0 },
+	{ "1:maxp5gb1a0", "0x64", 0 },
+	{ "1:maxp5gb2a0", "0x64", 0 },
+	{ "1:maxp5gb3a0", "0x64", 0 },
+	{ "1:maxp5gb4a0", "0x64", 0 },
+	{ "1:maxp5gb0a1", "0x64", 0 },
+	{ "1:maxp5gb1a1", "0x64", 0 },
+	{ "1:maxp5gb2a1", "0x64", 0 },
+	{ "1:maxp5gb3a1", "0x64", 0 },
+	{ "1:maxp5gb4a1", "0x64", 0 },
+	{ "1:maxp5gb0a2", "0x64", 0 },
+	{ "1:maxp5gb1a2", "0x64", 0 },
+	{ "1:maxp5gb2a2", "0x64", 0 },
+	{ "1:maxp5gb3a2", "0x64", 0 },
+	{ "1:maxp5gb4a2", "0x64", 0 },
+	{ "1:maxp5gb0a3", "0x64", 0 },
+	{ "1:maxp5gb1a3", "0x64", 0 },
+	{ "1:maxp5gb2a3", "0x64", 0 },
+	{ "1:maxp5gb3a3", "0x64", 0 },
+	{ "1:maxp5gb4a3", "0x64", 0 },
+	{ "1:pa5ga0", "0x1e2f,0xc9a2,0xc9a2,0xc9a2,0x1e28,0xc89f,0x2369,0x2393,0x1e19,0xc94b,0x25b1,0x240e,0x1de8,0xc6a4,0x1e89,0x22e2,0x199f,0xd1fe,0x3bde,0x2678", 0 },
+	{ "1:pa5g40a0", "0x1f17,0xd2ac,0x3aec,0x25fc,0x1f24,0xd3fb,0x3ded,0x2654,0x1edc,0xd851,0x487d,0x275a,0x1ed3,0xd46f,0x3ff4,0x2696,0x1aa9,0xd277,0x3ab1,0x25cd", 0 },
+	{ "1:pa5g80a0", "0x1fc5,0xdda2,0x4b70,0x26f9,0x1fa8,0xe03a,0x50a1,0x2772,0x1f93,0xdfd1,0x50cf,0x2779,0x1f8d,0xdd8f,0x4d83,0x2765,0x1c1b,0xd348,0x3c15,0x25a0", 0 },
+	{ "1:pa5ga1", "0x1dd7,0xc766,0x221f,0x237e,0x1dc4,0xc7f8,0x22fd,0x23a5,0x1dc9,0xc860,0x2325,0x23a8,0x1da0,0xc6c8,0x1e8d,0x22df,0x194c,0xc9a1,0x292a,0x2477", 0 },
+	{ "1:pa5g40a1", "0x1e82,0xd57a,0x43a1,0x270e,0x1e87,0xd71a,0x4681,0x273f,0x1e78,0xd697,0x42c6,0x26d8,0x1e72,0xd394,0x3cab,0x265a,0x1a54,0xce71,0x3523,0x254d", 0 },
+	{ "1:pa5g80a1", "0x1f01,0xdfcd,0x522d,0x27af,0x1f18,0xdd68,0x4c14,0x273e,0x1ef2,0xde6b,0x4ee8,0x278a,0x1f0b,0xdaf3,0x471b,0x26fe,0x1b80,0xcde7,0x32e5,0x2505", 0 },
+	{ "1:pa5ga2", "0x1e2b,0xc851,0x24f1,0x23d3,0x1e31,0xc9ff,0x27fd,0x2451,0x1e42,0xca20,0x2791,0x2437,0x1e13,0xc8d1,0x242c,0x23ac,0x1a23,0xcec8,0x3216,0x2550", 0 },
+	{ "1:pa5g40a2", "0x1ec0,0xdac4,0x50b3,0x2807,0x1ef6,0xda38,0x4d94,0x27bd,0x1ec4,0xddc6,0x543b,0x281a,0x1ede,0xd8e1,0x4a5d,0x276d,0x1b07,0xd11b,0x351c,0x2536", 0 },
+	{ "1:pa5g80a2", "0x1f9d,0xe18b,0x51ae,0x2754,0x1fbf,0xdf13,0x4b5e,0x26e1,0x1f87,0xe071,0x4dd6,0x270b,0x1fa4,0xdf99,0x4f1c,0x2744,0x1c3e,0xd70e,0x455f,0x267b", 0 },
+	{ "1:pa5ga3", "0x1e2c,0xc9e2,0x282d,0x245c,0x1e2e,0xcb5b,0x2a14,0x2498,0x1e3e,0xca6e,0x27aa,0x2433,0x1e0b,0xc835,0x23aa,0x23bf,0x1a82,0xd441,0x3a0e,0x2601", 0 },
+	{ "1:pa5g40a3", "0x1ed4,0xd999,0x4c9c,0x27be,0x1ee9,0xdb17,0x4e7c,0x27d1,0x1ee8,0xda30,0x4b75,0x276c,0x1ef6,0xd489,0x3f53,0x2671,0x1b05,0xe45e,0x6302,0x28f2", 0 },
+	{ "1:pa5g80a3", "0x1fac,0xe182,0x5211,0x276c,0x1f4c,0xe7be,0x5d6d,0x2843,0x1f8f,0xe325,0x5480,0x2791,0x1fb0,0xde51,0x4c9e,0x2733,0x1c6b,0xdb66,0x4337,0x2607", 0 },
+	{ "1:rpcal5gb0", "0", 0 },
+	{ "1:rpcal5gb1", "0", 0 },
+	{ "1:rpcal5gb2", "0", 0 },
+	{ "1:rpcal5gb3", "0", 0 },
+	{ "1:rpcal5gb4", "0", 0 },
+	{ "1:txidxcap5g", "0", 0 },
+	{ "1:pdoffsetcckma0", "15", 0 },
+	{ "1:pdoffsetcckma1", "15", 0 },
+	{ "1:pdoffsetcckma2", "15", 0 },
+	{ "1:pdoffsetcck", "0", 0 },
+	{ "1:pdoffset20in40m5gb0", "0x7BBD", 0 },
+	{ "1:pdoffset20in40m5gb1", "0x7BBD", 0 },
+	{ "1:pdoffset20in40m5gb2", "0x77BD", 0 },
+	{ "1:pdoffset20in40m5gb3", "0x77BD", 0 },
+	{ "1:pdoffset20in40m5gb4", "0x77BD", 0 },
+	{ "1:pdoffset40in80m5gb0", "0x0000", 0 },
+	{ "1:pdoffset40in80m5gb1", "0x0420", 0 },
+	{ "1:pdoffset40in80m5gb2", "0x0440", 0 },
+	{ "1:pdoffset40in80m5gb3", "0x0820", 0 },
+	{ "1:pdoffset40in80m5gb4", "0x0841", 0 },
+	{ "1:pdoffset20in80m5gb0", "0x7BDD", 0 },
+	{ "1:pdoffset20in80m5gb1", "0x7FFF", 0 },
+	{ "1:pdoffset20in80m5gb2", "0x7BDE", 0 },
+	{ "1:pdoffset20in80m5gb3", "0x7BDE", 0 },
+	{ "1:pdoffset20in80m5gb4", "0x7BDE", 0 },
+	{ "1:swctrlmap4_cfg", "1", 0 },
+	{ "1:swctrlmap4_TX2g_fem3to0", "0x0", 0 },
+	{ "1:swctrlmap4_RX2g_fem3to0", "0x0", 0 },
+	{ "1:swctrlmap4_RXByp2g_fem3to0", "0x0", 0 },
+	{ "1:swctrlmap4_misc2g_fem3to0", "0x0", 0 },
+	{ "1:swctrlmap4_TX5g_fem3to0", "0x6666", 0 },
+	{ "1:swctrlmap4_RX5g_fem3to0", "0x1111", 0 },
+	{ "1:swctrlmap4_RXByp5g_fem3to0", "0x3333", 0 },
+	{ "1:swctrlmap4_misc5g_fem3to0", "0x0000", 0 },
+	{ "1:swctrlmap4_TX2g_fem7to4", "0", 0 },
+	{ "1:swctrlmap4_RX2g_fem7to4", "0", 0 },
+	{ "1:swctrlmap4_RXByp2g_fem7to4", "0", 0 },
+	{ "1:swctrlmap4_misc2g_fem7to4", "0", 0 },
+	{ "1:swctrlmap4_TX5g_fem7to4", "0", 0 },
+	{ "1:swctrlmap4_RX5g_fem7to4", "0", 0 },
+	{ "1:swctrlmap4_RXByp5g_fem7to4", "0", 0 },
+	{ "1:swctrlmap4_misc5g_fem7to4", "0", 0 },
+	{ "1:srom13sig", "0x4D55", 0 },
+	{ "2:sromrev", "13", 0 },
+	{ "devpath2", "pcie/2/1", 0 },
+	{ "2:boardvendor", "0x14e4", 0 },
+	{ "2:devid", "0x43c5", 0 },
+	{ "2:venid", "0x14e4", 0 },
+	{ "2:boardflags", "0x10000000", 0 },
+	{ "2:boardflags2", "0x4", 0 },
+	{ "2:boardflags3", "0x0", 0 },
+	{ "2:boardflags4", "0xE", 0 },
+	{ "2:aa5g", "15", 0 },
+	{ "2:agbg0", "133", 0 },
+	{ "2:agbg1", "133", 0 },
+	{ "2:agbg2", "133", 0 },
+	{ "2:agbg3", "5", 0 },
+	{ "2:aga0", "71", 0 },
+	{ "2:aga1", "71", 0 },
+	{ "2:aga2", "71", 0 },
+	{ "2:aga3", "133", 0 },
+	{ "2:txchain", "0xf", 0 },
+	{ "2:rxchain", "0xf", 0 },
+	{ "2:antswitch", "0", 0 },
+	{ "2:femctrl", "2", 0 },
+	{ "2:tssiposslope5g", "1", 0 },
+	{ "2:epagain5g", "0", 0 },
+	{ "2:pdgain5g", "2", 0 },
+	{ "2:tworangetssi5g", "0", 0 },
+	{ "2:papdcap5g", "0", 0 },
+	{ "2:gainctrlsph", "0", 0 },
+	{ "2:tempthresh", "120", 0 },
+	{ "2:tempoffset", "255", 0 },
+	{ "2:rawtempsense", "0x1ff", 0 },
+	{ "2:tempsense_slope", "0xff", 0 },
+	{ "2:tempcorrx", "0x3f", 0 },
+	{ "2:tempsense_option", "0x3", 0 },
+	{ "2:phycal_tempdelta", "40", 0 },
+	{ "2:temps_period", "10", 0 },
+	{ "2:temps_hysteresis", "5", 0 },
+	{ "2:xtalfreq", "40000", 0 },
+	{ "2:measpower", "0x7f", 0 },
+	{ "2:measpower1", "0x7f", 0 },
+	{ "2:measpower2", "0x7e", 0 },
+	{ "2:tssifloor5g", "0x0,0x3ff,0x335,0x318", 0 },
+	{ "2:subband5gver", "0x5", 0 },
+	{ "2:paparambwver", "0", 0 },
+	{ "2:pdoffset20in40m5gcore3", "0x77BD", 0 },
+	{ "2:pdoffset20in40m5gcore3_1", "0x03BD", 0 },
+	{ "2:pdoffset40in80m5gcore3", "0x0422", 0 },
+	{ "2:pdoffset40in80m5gcore3_1", "0x0041", 0 },
+	{ "2:pdoffset20in80m5gcore3", "0x7BFE", 0 },
+	{ "2:pdoffset20in80m5gcore3_1", "0x03DE", 0 },
+	{ "2:mcs1024qam5glpo", "0xEEEEEEEE", 0 },
+	{ "2:mcs1024qam5gmpo", "0xEEEEEEEE", 0 },
+	{ "2:mcs1024qam5ghpo", "0x66666666", 0 },
+	{ "2:mcs1024qam5gx1po", "0x66666666", 0 },
+	{ "2:mcs1024qam5gx2po", "0x66666666", 0 },
+	{ "2:mcs8poexp", "0", 0 },
+	{ "2:mcs9poexp", "0", 0 },
+	{ "2:mcs10poexp", "0xF8F8F8F8", 0 },
+	{ "2:mcs11poexp", "0xF8F8F8F8", 0 },
+	{ "2:ulbpproffs5gb0", "0", 0 },
+	{ "2:ulbpproffs5gb1", "0", 0 },
+	{ "2:ulbpproffs5gb2", "0", 0 },
+	{ "2:ulbpproffs5gb3", "0", 0 },
+	{ "2:ulbpproffs5gb4", "0", 0 },
+	{ "2:ulbpdoffs5gb0a0", "65535", 0 },
+	{ "2:ulbpdoffs5gb1a0", "65535", 0 },
+	{ "2:ulbpdoffs5gb2a0", "65535", 0 },
+	{ "2:ulbpdoffs5gb3a0", "65535", 0 },
+	{ "2:ulbpdoffs5gb4a0", "65535", 0 },
+	{ "2:ulbpdoffs5gb0a1", "65535", 0 },
+	{ "2:ulbpdoffs5gb1a1", "65535", 0 },
+	{ "2:ulbpdoffs5gb2a1", "65535", 0 },
+	{ "2:ulbpdoffs5gb3a1", "65535", 0 },
+	{ "2:ulbpdoffs5gb4a1", "65535", 0 },
+	{ "2:ulbpdoffs5gb0a2", "65535", 0 },
+	{ "2:ulbpdoffs5gb1a2", "65535", 0 },
+	{ "2:ulbpdoffs5gb2a2", "65535", 0 },
+	{ "2:ulbpdoffs5gb3a2", "65535", 0 },
+	{ "2:ulbpdoffs5gb4a2", "65535", 0 },
+	{ "2:ulbpdoffs5gb0a3", "65535", 0 },
+	{ "2:ulbpdoffs5gb1a3", "65535", 0 },
+	{ "2:ulbpdoffs5gb2a3", "65535", 0 },
+	{ "2:ulbpdoffs5gb3a3", "65535", 0 },
+	{ "2:ulbpdoffs5gb4a3", "65535", 0 },
+	{ "2:mcsbw205glpo", "0xAA888220", 0 },
+	{ "2:mcsbw405glpo", "0xAA888220", 0 },
+	{ "2:mcsbw805glpo", "0xAA888220", 0 },
+	{ "2:mcsbw1605glpo", "0xFFFFFFFF ", 0 },
+	{ "2:mcsbw205gmpo", "0xAA888220", 0 },
+	{ "2:mcsbw405gmpo", "0xAA888220", 0 },
+	{ "2:mcsbw805gmpo", "0xAA888220", 0 },
+	{ "2:mcsbw1605gmpo", "0xFFFFFFFF", 0 },
+	{ "2:mcsbw205ghpo", "0xEE888220", 0 },
+	{ "2:mcsbw405ghpo", "0xEE888220", 0 },
+	{ "2:mcsbw805ghpo", "0xEE888220", 0 },
+	{ "2:mcsbw1605ghpo", "0xFFFFFFFF", 0 },
+	{ "2:mcsbw205gx1po", "0xEE888220", 0 },
+	{ "2:mcsbw405gx1po", "0xEE888220", 0 },
+	{ "2:mcsbw805gx1po", "0xEE888220", 0 },
+	{ "2:mcsbw1605gx1po", "0xFFFFFFFF", 0 },
+	{ "2:mcsbw205gx2po", "0xEE888220", 0 },
+	{ "2:mcsbw405gx2po", "0xEE888220", 0 },
+	{ "2:mcsbw805gx2po", "0xEE888220", 0 },
+	{ "2:mcsbw1605gx2po", "0xFFFFFFFF", 0 },
+	{ "2:mcslr5glpo", "0", 0 },
+	{ "2:mcslr5gmpo", "0", 0 },
+	{ "2:mcslr5ghpo", "0", 0 },
+	{ "2:mcslr5gx1po", "0", 0 },
+	{ "2:mcslr5gx2po", "0", 0 },
+	{ "2:sb20in40hrpo", "0", 0 },
+	{ "2:sb20in40lrpo", "0", 0 },
+	{ "2:sb20in40hrlrpox", "0", 0 },
+	{ "2:dot11agduphrpo", "0", 0 },
+	{ "2:dot11agduplrpo", "0", 0 },
+	{ "2:dot11agduphrlrpox", "0", 0 },
+	{ "2:sb40and80hr5glpo", "0", 0 },
+	{ "2:sb40and80hr5gmpo", "0", 0 },
+	{ "2:sb40and80hr5ghpo", "0", 0 },
+	{ "2:sb40and80hr5gx1po", "0", 0 },
+	{ "2:sb40and80hr5gx2po", "0", 0 },
+	{ "2:sb20in80and160hr5glpo", "0", 0 },
+	{ "2:sb20in80and160hr5gmpo", "0", 0 },
+	{ "2:sb20in80and160hr5ghpo", "0", 0 },
+	{ "2:sb20in80and160hr5gx1po", "0", 0 },
+	{ "2:sb20in80and160hr5gx2po", "0", 0 },
+	{ "2:sb40and80lr5glpo", "0", 0 },
+	{ "2:sb40and80lr5gmpo", "0", 0 },
+	{ "2:sb40and80lr5ghpo", "0", 0 },
+	{ "2:sb40and80lr5gx1po", "0", 0 },
+	{ "2:sb40and80lr5gx2po", "0", 0 },
+	{ "2:sb20in80and160lr5glpo", "0", 0 },
+	{ "2:sb20in80and160lr5gmpo", "0", 0 },
+	{ "2:sb20in80and160lr5ghpo", "0", 0 },
+	{ "2:sb20in80and160lr5gx1po", "0", 0 },
+	{ "2:sb20in80and160lr5gx2po", "0", 0 },
+	{ "2:pcieingress_war", "15", 0 },
+	{ "2:sar5g", "15", 0 },
+	{ "2:noiselvl5ga0", "31,31,31,31", 0 },
+	{ "2:noiselvl5ga1", "31,31,31,31", 0 },
+	{ "2:noiselvl5ga2", "31,31,31,31", 0 },
+	{ "2:noiselvl5ga3", "31,31,31,31", 0 },
+	{ "2:rxgainerr5ga0", "63,63,63,63", 0 },
+	{ "2:rxgainerr5ga1", "31,31,31,31", 0 },
+	{ "2:rxgainerr5ga2", "31,31,31,31", 0 },
+	{ "2:rxgainerr5ga3", "31,31,31,31", 0 },
+	{ "2:rxgains5gmelnagaina0", "3", 0 },
+	{ "2:rxgains5gmelnagaina1", "3", 0 },
+	{ "2:rxgains5gmelnagaina2", "3", 0 },
+	{ "2:rxgains5gmelnagaina3", "3", 0 },
+	{ "2:rxgains5gmtrisoa0", "6", 0 },
+	{ "2:rxgains5gmtrisoa1", "6", 0 },
+	{ "2:rxgains5gmtrisoa2", "6", 0 },
+	{ "2:rxgains5gmtrisoa3", "6", 0 },
+	{ "2:rxgains5gmtrelnabypa0", "1", 0 },
+	{ "2:rxgains5gmtrelnabypa1", "1", 0 },
+	{ "2:rxgains5gmtrelnabypa2", "1", 0 },
+	{ "2:rxgains5gmtrelnabypa3", "1", 0 },
+	{ "2:rxgains5ghelnagaina0", "3", 0 },
+	{ "2:rxgains5ghelnagaina1", "3", 0 },
+	{ "2:rxgains5ghelnagaina2", "3", 0 },
+	{ "2:rxgains5ghelnagaina3", "3", 0 },
+	{ "2:rxgains5ghtrisoa0", "6", 0 },
+	{ "2:rxgains5ghtrisoa1", "6", 0 },
+	{ "2:rxgains5ghtrisoa2", "6", 0 },
+	{ "2:rxgains5ghtrisoa3", "6", 0 },
+	{ "2:rxgains5ghtrelnabypa0", "1", 0 },
+	{ "2:rxgains5ghtrelnabypa1", "1", 0 },
+	{ "2:rxgains5ghtrelnabypa2", "1", 0 },
+	{ "2:rxgains5ghtrelnabypa3", "1", 0 },
+	{ "2:gpdn", "0xffffffff", 0 },
+	{ "2:eu_edthresh5g", "255", 0 },
+	{ "2:rxgains5gelnagaina0", "3", 0 },
+	{ "2:rxgains5gelnagaina1", "3", 0 },
+	{ "2:rxgains5gelnagaina2", "3", 0 },
+	{ "2:rxgains5gelnagaina3", "3", 0 },
+	{ "2:rxgains5gtrisoa0", "6", 0 },
+	{ "2:rxgains5gtrisoa1", "6", 0 },
+	{ "2:rxgains5gtrisoa2", "6", 0 },
+	{ "2:rxgains5gtrisoa3", "6", 0 },
+	{ "2:rxgains5gtrelnabypa0", "1", 0 },
+	{ "2:rxgains5gtrelnabypa1", "1", 0 },
+	{ "2:rxgains5gtrelnabypa2", "1", 0 },
+	{ "2:rxgains5gtrelnabypa3", "1", 0 },
+	{ "2:maxp5gb0a0", "0x64", 0 },
+	{ "2:maxp5gb1a0", "0x64", 0 },
+	{ "2:maxp5gb2a0", "0x64", 0 },
+	{ "2:maxp5gb3a0", "0x64", 0 },
+	{ "2:maxp5gb4a0", "0x64", 0 },
+	{ "2:maxp5gb0a1", "0x64", 0 },
+	{ "2:maxp5gb1a1", "0x64", 0 },
+	{ "2:maxp5gb2a1", "0x64", 0 },
+	{ "2:maxp5gb3a1", "0x64", 0 },
+	{ "2:maxp5gb4a1", "0x64", 0 },
+	{ "2:maxp5gb0a2", "0x64", 0 },
+	{ "2:maxp5gb1a2", "0x64", 0 },
+	{ "2:maxp5gb2a2", "0x64", 0 },
+	{ "2:maxp5gb3a2", "0x64", 0 },
+	{ "2:maxp5gb4a2", "0x64", 0 },
+	{ "2:maxp5gb0a3", "0x64", 0 },
+	{ "2:maxp5gb1a3", "0x64", 0 },
+	{ "2:maxp5gb2a3", "0x64", 0 },
+	{ "2:maxp5gb3a3", "0x64", 0 },
+	{ "2:maxp5gb4a3", "0x64", 0 },
+	{ "2:pa5ga0", "0x1bc1,0xd294,0x33ea,0x2531,0x1e28,0xc89f,0x2369,0x2393,0x1e19,0xc94b,0x25b1,0x240e,0x1de8,0xc6a4,0x1e89,0x22e2,0x1dbc,0xc54f,0x1e4c,0x2304", 0 },
+	{ "2:pa5g40a0", "0x1caf,0xd4a0,0x3684,0x2529,0x1f24,0xd3fb,0x3ded,0x2654,0x1edc,0xd851,0x487d,0x275a,0x1ed3,0xd46f,0x3ff4,0x2696,0x1ea9,0xd358,0x41bf,0x26ee", 0 },
+	{ "2:pa5g80a0", "0x1e6a,0xcf3e,0x2edd,0x245e,0x1fa8,0xe03a,0x50a1,0x2772,0x1f93,0xdfd1,0x50cf,0x2779,0x1f8d,0xdd8f,0x4d83,0x2765,0x1f61,0xdb09,0x4aa3,0x273f", 0 },
+	{ "2:pa5ga1", "0x1c89,0xcfe7,0x303e,0x24f1,0x1dc4,0xc7f8,0x22fd,0x23a5,0x1dc9,0xc860,0x2325,0x23a8,0x1da0,0xc6c8,0x1e8d,0x22df,0x1d8e,0xc65b,0x1f2f,0x232c", 0 },
+	{ "2:pa5g40a1", "0x1d60,0xd1eb,0x3147,0x24a6,0x1e87,0xd71a,0x4681,0x273f,0x1e78,0xd697,0x42c6,0x26d8,0x1e72,0xd394,0x3cab,0x265a,0x1e6f,0xd116,0x37c0,0x25e3", 0 },
+	{ "2:pa5g80a1", "0x1e79,0xd0f0,0x30a9,0x2479,0x1f18,0xdd68,0x4c14,0x273e,0x1ef2,0xde6b,0x4ee8,0x278a,0x1f0b,0xdaf3,0x471b,0x26fe,0x1ef9,0xd83d,0x431c,0x26c7", 0 },
+	{ "2:pa5ga2", "0x1c3f,0xd1a0,0x3717,0x25af,0x1e31,0xc9ff,0x27fd,0x2451,0x1e42,0xca20,0x2791,0x2437,0x1e13,0xc8d1,0x242c,0x23ac,0x1dda,0xc938,0x26df,0x2427", 0 },
+	{ "2:pa5g40a2", "0x1d34,0xd4a8,0x3ad8,0x25ad,0x1ef6,0xda38,0x4d94,0x27bd,0x1ec4,0xddc6,0x543b,0x281a,0x1ede,0xd8e1,0x4a5d,0x276d,0x1efc,0xd0de,0x3889,0x25c5", 0 },
+	{ "2:pa5g80a2", "0x1ead,0xcde0,0x2c6e,0x2410,0x1fbf,0xdf13,0x4b5e,0x26e1,0x1f87,0xe071,0x4dd6,0x270b,0x1fa4,0xdf99,0x4f1c,0x2744,0x1fbf,0xd8f1,0x4323,0x2673", 0 },
+	{ "2:pa5ga3", "0x1c90,0xd31d,0x37b6,0x25c5,0x1e2e,0xcb5b,0x2a14,0x2498,0x1e3e,0xca6e,0x27aa,0x2433,0x1e0b,0xc835,0x23aa,0x23bf,0x1dcd,0xc6d0,0x221f,0x2395", 0 },
+	{ "2:pa5g40a3", "0x1d9b,0xd4a3,0x380f,0x2537,0x1ee9,0xdb17,0x4e7c,0x27d1,0x1ee8,0xda30,0x4b75,0x276c,0x1ef6,0xd489,0x3f53,0x2671,0x1eeb,0xcf2e,0x3527,0x25a1", 0 },
+	{ "2:pa5g80a3", "0x1f3d,0xd0b2,0x336e,0x2514,0x1f4c,0xe7be,0x5d6d,0x2843,0x1f8f,0xe325,0x5480,0x2791,0x1fb0,0xde51,0x4c9e,0x2733,0x1e50,0xda8b,0x490b,0x2703", 0 },
+	{ "2:rpcal5gb0", "0", 0 },
+	{ "2:rpcal5gb1", "0", 0 },
+	{ "2:rpcal5gb2", "0", 0 },
+	{ "2:rpcal5gb3", "0", 0 },
+	{ "2:rpcal5gb4", "0", 0 },
+	{ "2:txidxcap5g", "0", 0 },
+	{ "2:pdoffsetcckma0", "15", 0 },
+	{ "2:pdoffsetcckma1", "15", 0 },
+	{ "2:pdoffsetcckma2", "15", 0 },
+	{ "2:pdoffsetcck", "0", 0 },
+	{ "2:pdoffset20in40m5gb0", "0x7BBD", 0 },
+	{ "2:pdoffset20in40m5gb1", "0x7BBD", 0 },
+	{ "2:pdoffset20in40m5gb2", "0x77BD", 0 },
+	{ "2:pdoffset20in40m5gb3", "0x77BD", 0 },
+	{ "2:pdoffset20in40m5gb4", "0x77BD", 0 },
+	{ "2:pdoffset40in80m5gb0", "0x0000", 0 },
+	{ "2:pdoffset40in80m5gb1", "0x0420", 0 },
+	{ "2:pdoffset40in80m5gb2", "0x0440", 0 },
+	{ "2:pdoffset40in80m5gb3", "0x0820", 0 },
+	{ "2:pdoffset40in80m5gb4", "0x0841", 0 },
+	{ "2:pdoffset20in80m5gb0", "0x7BDD", 0 },
+	{ "2:pdoffset20in80m5gb1", "0x7FFF", 0 },
+	{ "2:pdoffset20in80m5gb2", "0x7BDE", 0 },
+	{ "2:pdoffset20in80m5gb3", "0x7BDE", 0 },
+	{ "2:pdoffset20in80m5gb4", "0x7BDE", 0 },
+	{ "2:swctrlmap4_cfg", "1", 0 },
+	{ "2:swctrlmap4_TX2g_fem3to0", "0x0", 0 },
+	{ "2:swctrlmap4_RX2g_fem3to0", "0x0", 0 },
+	{ "2:swctrlmap4_RXByp2g_fem3to0", "0x0", 0 },
+	{ "2:swctrlmap4_misc2g_fem3to0", "0x0", 0 },
+	{ "2:swctrlmap4_TX5g_fem3to0", "0x6666", 0 },
+	{ "2:swctrlmap4_RX5g_fem3to0", "0x1111", 0 },
+	{ "2:swctrlmap4_RXByp5g_fem3to0", "0x3333", 0 },
+	{ "2:swctrlmap4_misc5g_fem3to0", "0x0000", 0 },
+	{ "2:swctrlmap4_TX2g_fem7to4", "0", 0 },
+	{ "2:swctrlmap4_RX2g_fem7to4", "0", 0 },
+	{ "2:swctrlmap4_RXByp2g_fem7to4", "0", 0 },
+	{ "2:swctrlmap4_misc2g_fem7to4", "0", 0 },
+	{ "2:swctrlmap4_TX5g_fem7to4", "0", 0 },
+	{ "2:swctrlmap4_RX5g_fem7to4", "0", 0 },
+	{ "2:swctrlmap4_RXByp5g_fem7to4", "0", 0 },
+	{ "2:swctrlmap4_misc5g_fem7to4", "0", 0 },
+	{ "2:srom13sig", "0x4D55", 0 },
+#endif
+	{ 0, 0, 0 }
+};
+#elif defined(RTAC1200G) || defined(RTAC1200GP)
+struct nvram_tuple bcm4360ac_defaults[] = {
+	{ "0:xtalfreq", "20000", 0 },
+	{ "0:opo", "68", 0 },
+	{ "0:aa2g", "0x3", 0 },
+	{ "0:ag0", "0x2", 0 },
+	{ "0:ag1", "0x2", 0 },
+	{ "0:ag2", "0xff", 0 },
+	{ "0:ag3", "0xff", 0 },
+	{ "0:bxa2g", "0x0", 0 },
+	{ "0:rssisav2g", "0x0", 0 },
+	{ "0:rssismc2g", "0x0", 0 },
+	{ "0:rssismf2g", "0x0", 0 },
+	{ "0:tri2g", "0x0", 0 },
+	{ "0:rxpo2g", "0x0", 0 },
+	{ "0:txchain", "0x3", 0 },
+	{ "0:rxchain", "0x3", 0 },
+	{ "0:antswitch", "0x0", 0 },
+	{ "0:tssipos2g", "0x1", 0 },
+//	{ "0:extpagain2g", "0x0", 0 },
+	{ "0:pdetrange2g", "0x3", 0 },
+	{ "0:triso2g", "0x4", 0 },
+	{ "0:antswctl2g", "0x0", 0 },
+	{ "0:elna2g", "0x2", 0 },
+	{ "0:itt2ga0", "0x20", 0 },
+	{ "0:itt2ga1", "0x20", 0 },
+	{ "0:ledbh0", "11", 0 },
+	{ "0:ledbh1", "11", 0 },
+	{ "0:ledbh2", "11", 0 },
+	{ "0:ledbh3", "7", 0 },
+	{ "0:leddc", "0xFFFF", 0 },
+	{ "0:temps_period", "5", 0 },
+	{ "0:tempthresh", "120", 0 },
+	{ "0:temps_hysteresis", "5", 0 },
+	{ "0:phycal_tempdelta", "0", 0 },
+	{ "0:tempoffset", "0", 0 },
+	{ "sb/1/aa2g", "0", 0 },
+	{ "sb/1/aa5g", "3", 0 },
+	{ "sb/1/aga0", "0", 0 },
+	{ "sb/1/aga1", "0", 0 },
+	{ "sb/1/aga2", "0", 0 },
+	{ "sb/1/txchain", "3", 0 },
+	{ "sb/1/rxchain", "3", 0 },
+	{ "sb/1/antswitch", "0", 0 },
+	{ "sb/1/femctrl", "15", 0 },
+	{ "sb/1/subband5gver", "4", 0 },
+	{ "sb/1/gainctrlsph", "0", 0 },
+	{ "sb/1/papdcap5g", "0", 0 },
+	{ "sb/1/tworangetssi5g", "0", 0 },
+	{ "sb/1/pdgain5g", "0", 0 },
+//	{ "sb/1/epagain5g", "0", 0 },
+	{ "sb/1/tssiposslope5g", "1", 0 },
+	{ "sb/1/AvVmid_c0", "2,135,2,135,2,135,2,135,2,135", 0 },
+	{ "sb/1/AvVmid_c1", "2,145,2,145,2,145,2,145,2,145", 0 },
+	{ "sb/1/paparambwver", "3", 0 },
+	{ "paparambwver", "3", 0 },
+	{ "sb/1/pdoffset5gsubbanda0", "0x0000", 0 },
+	{ "sb/1/pdoffset5gsubbanda1", "0x0000", 0 },
+	{ "sb/1/rxgains5gelnagaina0", "3", 0 },
+	{ "sb/1/rxgains5gtrelnabypa0", "1", 0 },
+//	{ "sb/1/rxgains5gtrisoa0", "8", 0 },
+	{ "sb/1/rxgains5gmelnagaina0", "3", 0 },
+	{ "sb/1/rxgains5gmtrelnabypa0", "1", 0 },
+//	{ "sb/1/rxgains5gmtrisoa0", "8", 0 },
+	{ "sb/1/rxgains5ghelnagaina0", "3", 0 },
+	{ "sb/1/rxgains5ghtrelnabypa0", "1", 0 },
+//	{ "sb/1/rxgains5ghtrisoa0", "8", 0 },
+	{ "sb/1/rxgains5gelnagaina1", "3", 0 },
+	{"sb/1/rxgains5gtrelnabypa1", "1", 0 },
+//	{"sb/1/rxgains5gtrisoa1", "8", 0 },
+	{"sb/1/rxgains5gmelnagaina1", "3", 0 },
+	{"sb/1/rxgains5gmtrelnabypa1", "1", 0 },
+//	{"sb/1/rxgains5gmtrisoa1", "8", 0 },
+	{"sb/1/rxgains5ghelnagaina1", "3", 0 },
+	{"sb/1/rxgains5ghtrelnabypa1", "1", 0 },
+//	{"sb/1/rxgains5ghtrisoa1", "5", 0 },
+	{"sb/1/rssi_delta_5gl_c0", "-3,0,-5,0,-5,0", 0 },
+	{"sb/1/rssi_delta_5gml_c0", "-4,0,-5,0,-5,0", 0 },
+	{"sb/1/rssi_delta_5gmu_c0", "-4,0,-5,0,-5,0", 0 },
+	{"sb/1/rssi_delta_5gh_c0", "-4,0,-6,0,-5,0", 0 },
+	{"sb/1/rssi_delta_5gl_c1", "-3,0,-5,0,-5,0", 0 },
+	{"sb/1/rssi_delta_5gml_c1", "-4,0,-5,0,-5,0", 0 },
+	{"sb/1/rssi_delta_5gmu_c1", "-4,0,-5,0,-5,0", 0 },
+	{"sb/1/rssi_delta_5gh_c1", "-4,0,-6,0,-5,0", 0 },
+	{"sb/1/rssi_delta_2g_c0", "4,5,4,5", 0 },
+	{"sb/1/rssi_delta_2g_c1", "2,3,2,3", 0 },
+	{"sb/1/ledbh0", "11", 0 },
+	{"sb/1/ledbh1", "11", 0 },
+	{"sb/1/ledbh2", "11", 0 },
+	{"sb/1/ledbh3", "11", 0 },
+	{"sb/1/ledbh11", "0x7", 0 },
+	{"sb/1/leddc", "0xFFFF", 0 },
+	{"sb/1/temps_period", "5", 0 },
+	{"sb/1/tempthresh", "120", 0 },
+	{"sb/1/temps_hysteresis", "5", 0 },
+	{"sb/1/phycal_tempdelta", "15", 0 },
+	{"sb/1/tempoffset", "0", 0 },
+	{0, 0, 0 }
 };
 #else
 struct nvram_tuple bcm4360ac_defaults[] = {
@@ -2831,6 +4679,16 @@ struct nvram_tuple bcm4360ac_defaults[] = {
 	{ "1:ledbh0", "7", 0 },
 	{ "1:ledbh9", "7", 0 },
 #endif
+	{ "0:temps_period", "5", 0 },
+	{ "0:tempthresh", "120", 0 },
+	{ "0:temps_hysteresis", "5", 0 },
+	{ "0:phycal_tempdelta", "0", 0 },
+	{ "0:tempoffset", "0", 0 },
+	{ "1:temps_period", "5", 0 },
+	{ "1:tempthresh", "120", 0 },
+	{ "1:temps_hysteresis", "5", 0 },
+	{ "1:phycal_tempdelta", "0", 0 },
+	{ "1:tempoffset", "0", 0 },
 	{ 0, 0, 0 }
 };
 #endif
@@ -2844,7 +4702,6 @@ struct nvram_tuple router_defaults_override_type1[] = {
 	{ "wl_wmf_bss_enable", "1", 0 },	/* WMF Enable for IPTV Media or WiFi+PLC */
 	{ "wl_reg_mode", "h", 0 },		/* Regulatory: 802.11H(h) */
 #ifndef RTCONFIG_BCM7
-	{ "wl_wet_tunnel", "1", 0 },		/* Enable wet tunnel */
 	{ "wl_taf_enable", "1", 0 },		/* Enable TAF */
 	{ "wl_taf_rule", "0x15", 0 },		/* Default TAF rule on SSID, RATE and AID */
 
@@ -2866,8 +4723,6 @@ struct nvram_tuple router_defaults_override_type1[] = {
 	{ "wl_wmf_ucigmp_query", "1", 0 },	/* Enable Converting IGMP Query to ucast */
 #ifdef RTCONFIG_BCMARM
 	{ "wl_wmf_ucast_upnp", "1", 0 },	/* Enable upnp to ucast conversion */
-#endif
-#ifndef RTCONFIG_BCM7
 	{ "wl_wmf_igmpq_filter", "1", 0 },	/* Enable igmp query filter */
 #endif
 #endif
@@ -2888,12 +4743,14 @@ struct nvram_tuple router_defaults_override_type1[] = {
 #endif
 #endif
 	{ "wl_amsdu", "off", 0 },		/* Default IPTV AMSDU setting */
-#ifdef RTCONFIG_BCMARM
+#if defined (RTCONFIG_BCMARM) && !defined (RTCONFIG_BCM_7114)
 	{ "wl_rx_amsdu_in_ampdu", "off", 0 },	/* Media RX AMSDU In AMPDU setting */
 #endif
 	{ "wl_cal_period", "0", 0 },		/* Disable periodic cal */
-#ifdef RTCONFIG_BCM7
+#ifdef RTCONFIG_BCMARM
 	{ "wl_psta_inact", "0", 0 },		/* PSTA inactivity timer */
+	{ "wl_srl", "11", 0},			/* Short Retry Limit */
+	{ "wl_lrl", "11", 0},			/* Long Retry Limit */
 #endif
 	{ 0, 0, 0 }
 };

@@ -17,9 +17,9 @@
 <script type="text/javascript" src="/help.js"></script>
 <script type="text/javascript" src="/general.js"></script>
 <script type="text/javascript" src="/popup.js"></script>
-<script language="JavaScript" type="text/javascript" src="/jquery.js"></script>
+<script language="JavaScript" type="text/javascript" src="/js/jquery.js"></script>
 <script>
-var $j = jQuery.noConflict();
+
 var varload = 0;
 var lan_ipaddr = '<% nvram_get("lan_ipaddr"); %>';
 var ddns_enable = '<% nvram_get("ddns_enable_x"); %>';	//0: disable, 1: enable
@@ -30,7 +30,11 @@ function initial(){
 	show_menu();
 	if(ddns_enable == 1 && ddns_server == "WWW.ASUS.COM")
 		document.getElementById("transfer_ddns_field").style.display = "";
-		
+
+	if ('<% nvram_get("jffs2_enable"); %>' != '1') {
+		document.getElementById("jffsrestore").style.display = "none";
+		document.getElementById("jffsbackup").style.display = "none";
+	}
 }
 
 function restoreRule(){
@@ -42,8 +46,8 @@ function restoreRule(){
 	alert_string += "<#Setting_factorydefault_hint2#>";
 	if(confirm(alert_string)){
 		document.form.action1.blur();
-		showtext($("loading_block2"), "<#SAVE_restart_desc#>");
-		$('loading_block3').style.display = "none";
+		showtext(document.getElementById("loading_block2"), "<#SAVE_restart_desc#>");
+		document.getElementById('loading_block3').style.display = "none";
 		showLoading();
 		document.restoreform.submit();
 	}
@@ -53,7 +57,13 @@ function restoreRule(){
 
 function saveSetting(){
 	var flag = 0;
-	flag = document.getElementById("transfer_ddns").checked ? 1 : 0;
+	if(ddns_enable == 1 && ddns_server != "WWW.ASUS.COM"){
+		flag = 1;
+	}
+	else{	//ASUS DDNS
+		flag = document.getElementById("transfer_ddns").checked ? 1 : 0;
+	}
+	
 	location.href='Settings_'+productid+'.CFG?path=' + flag;
 }
 
@@ -72,16 +82,41 @@ function uploadSetting(){
 	}
 	else{		
 		disableCheckChangedStatus();
-		showtext($("loading_block2"), "<#SET_ok_desc#>");
-		$('loading_block3').style.display = "none";
+		showtext(document.getElementById("loading_block2"), "<#SET_ok_desc#>");
+		document.getElementById('loading_block3').style.display = "none";
 		document.form.submit();
 	}	
+}
+
+function saveJFFS(){
+	location.href='backup_jffs.tar';
+}
+
+function uploadJFFS(){
+	var file_obj = document.form.file2;
+
+	if(file_obj.value == ""){
+		alert("<#JS_fieldblank#>");
+		file_obj.focus();
+	}
+	else if(file_obj.value.length < 6 ||
+			file_obj.value.lastIndexOf(".tar")  < 0 ||
+			file_obj.value.lastIndexOf(".tar") != (file_obj.value.length)-4){
+		alert("Invalid file!  Make sure you select a valid JFFS backup.");
+		file_obj.focus();
+	}
+	else{
+		document.getElementById('jffsfile').style.display = "none";
+		document.getElementById('jffsstatus').style.display = "";
+		document.form.action = "jffsupload.cgi";
+		document.form.submit();
+	}
 }
 
 var dead = 0;
 function detect_httpd(){
 
-	$j.ajax({
+	$.ajax({
     		url: '/httpd_check.xml',
     		dataType: 'xml',
 				timeout: 1500,
@@ -90,13 +125,13 @@ function detect_httpd(){
     				if(dead < 6){
     						setTimeout("detect_httpd();", 1000);
     				}else{
-    						$('loading_block1').style.display = "none";
-    						$('loading_block2').style.display = "none";
-    						$('loading_block3').style.display = "";
+    						document.getElementById('loading_block1').style.display = "none";
+    						document.getElementById('loading_block2').style.display = "none";
+    						document.getElementById('loading_block3').style.display = "";
 						if(findasus_support){
-    							$('loading_block3').innerHTML = "<div>You can also go to <a href=\"http://findasus.local\" style=\"font-family:Lucida Console;text-decoration:underline;color:#FC0;\">http://findasus.local</a> to search and enter device config page.</div>";
+    							document.getElementById('loading_block3').innerHTML = "<div>You can also go to <a href=\"http://findasus.local\" style=\"font-family:Lucida Console;text-decoration:underline;color:#FC0;\">http://findasus.local</a> to search and enter device config page.</div>";
 						}else{
-							$('loading_block3').innerHTML = "<div><#Main_alert_proceeding_desc3#>.<#LANConfig_ChangedLANIP#></div>";
+							document.getElementById('loading_block3').innerHTML = "<div><#Main_alert_proceeding_desc3#>.<#LANConfig_ChangedLANIP#></div>";
 						}
 							
     				}
@@ -179,7 +214,7 @@ function detect_httpd(){
 								<tr>
 			  						<td bgcolor="#4D595D" valign="top">
 				  						<div>&nbsp;</div>
-				  						<div class="formfonttitle"><#menu5_6_adv#> - <#menu5_6_4#></div>
+				  						<div class="formfonttitle"><#menu5_6#> - <#menu5_6_4#></div>
 										<div style="margin-left:5px;margin-top:10px;margin-bottom:10px"><img src="/images/New_ui/export/line_export.png"></div>
 										<div class="formfontdesc"><#Setting_save_upload_desc#></div>
 
@@ -215,6 +250,34 @@ function detect_httpd(){
 																</td>
 																<td style="border:0px">
 																	<input type="file" name="file" class="input" style="color:#FFCC00;"/>
+																</td>
+															</tr>
+														</table>
+													</div>
+												</td>
+											</tr>
+											<tr id="jffsbackup">
+												<th align="right">
+													Backup JFFS partition
+												</th>
+												<td>
+													<input class="button_gen" onclick="saveJFFS();" type="button" value="<#CTL_onlysave#>" name="action10" />
+												</td>
+											</tr>
+											<tr id="jffsrestore">
+												<th align="right">
+													Restore JFFS partition
+												</th>
+												<td>
+													<div style="margin-left:-10px;">
+														<table>
+															<tr>
+																<td style="border:0px">
+																	<input type="button" class="button_gen" onclick="uploadJFFS();" value="<#CTL_upload#>"/>
+																</td>
+																<td style="border:0px">
+																	<input id="jffsfile" type="file" name="file2" class="input" style="color:#FFCC00;"/>
+																	<span id="jffsstatus" style="display:none;"><img id="LoadingIcon" style="margin-left:5px;margin-right:5px;" src="/images/InternetScan.gif">Uploading, please wait...</span>
 																</td>
 															</tr>
 														</table>

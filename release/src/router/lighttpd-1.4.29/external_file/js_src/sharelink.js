@@ -339,7 +339,7 @@ function createThumbView(query_type, parent_url, folder_array, file_array){
 			html += '1';
 		else
 			html += '0';
-									
+								
 		html += '" uhref="';
 		html += folder_array[i].href;
 		html += '">';
@@ -404,7 +404,8 @@ function createThumbView(query_type, parent_url, folder_array, file_array){
 		html += '</td></tr>';
 		
 		html += '<tr><td>';
-		html += '<input type="button" class="btnDownload" value="' + m.getString("func_download") + '">';
+		//- Disable download function while selected the folder before we found the solution to download folder.
+		//html += '<input type="button" class="btnDownload" value="' + m.getString("func_download") + '">';
 		html += '</td></tr>';
 	
 		html += '</tbody>';
@@ -716,6 +717,7 @@ function doPROPFIND(open_url, complete_handler, auth){
 						
 						if(this_href!=""){							
 								if( this_contenttype=="httpd/unix-directory" ){
+									
 									g_folder_array.push({ contenttype: this_contenttype, 
 										                  href: this_href,
 										                  name: this_name,

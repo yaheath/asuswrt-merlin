@@ -88,6 +88,9 @@ extern int _memsize;
 #define PCI_MAX_BUS		4
 #define PLX_PRIM_SEC_BUS_NUM		(0x00000201 | (PCI_MAX_BUS << 16))
 
+#define PLX_SWITCH_ID		0x8603
+#define ASMEDIA_SWITCH_ID	0x1182
+
 static uint pcie_coreid, pcie_corerev;
 
 #ifdef	CONFIG_PCI
@@ -201,6 +204,7 @@ static struct soc_pcie_port {
 	bool isswitch;
 	bool port1active;
 	bool port2active;
+	uint16 switch_id;
 } soc_pcie_ports[4] = {
 	{
 	.irqs = {0, 0, 0, 0, 0, 0},
@@ -484,6 +488,84 @@ static void plx_pcie_switch_init(struct pci_bus *bus, unsigned int devfn)
 	}
 }
 
+static void
+asmedia_pcie_switch_init(struct pci_bus *bus, unsigned int devfn)
+{
+	struct soc_pcie_port *port = soc_pcie_bus2port(bus);
+	u32 dRead = 0;
+	u16 bm = 0;
+	int bus_inc = 0;
+
+	soc_pci_read_config(bus, devfn, 0x100, 4, &dRead);
+	printk("PCIE: Doing ASMedia switch Init...Test Read = %08x\n", (unsigned int)dRead);
+
+	soc_pci_read_config(bus, devfn, 0x4, 2, &bm);
+#if NS_PCI_DEBUG
+	printk("bus master: %08x\n", bm);
+#endif
+	bm |= 0x06;
+	soc_pci_write_config(bus, devfn, 0x4, 2, bm);
+	bm = 0;
+#if NS_PCI_DEBUG
+	soc_pci_read_config(bus, devfn, 0x4, 2, &bm);
+	printk("bus master after: %08x\n", bm);
+	bm = 0;
+#endif
+
+	/* Bus 1 is the upstream port of the switch.
+	 * Bus 2 has the two downstream ports, one on each device number.
+	 */
+	if (bus->number == (bus_inc + 1)) {
+		/* Upstream port */
+		soc_pci_write_config(bus, devfn, 0x18, 4, (0x00000201 | (PCI_MAX_BUS << 16)));
+
+		/* MEM_BASE, MEM_LIM require 1MB alignment */
+		BUG_ON((port->owin_res->start >> 16) & 0xf);
+		soc_pci_write_config(bus, devfn, PCI_MEMORY_BASE, 2,
+			port->owin_res->start >> 16);
+		BUG_ON(((port->owin_res->start + SZ_32M) >> 16) & 0xf);
+		soc_pci_write_config(bus, devfn, PCI_MEMORY_LIMIT, 2,
+			(port->owin_res->start + SZ_32M) >> 16);
+
+		printk("bm = %04x\n devfn = = %08x, bus = %08x\n", bm, devfn, bus->number);
+	} else if (bus->number == (bus_inc + 2)) {
+		/* Downstream ports */
+		if (devfn == 0x18) {
+			soc_pci_write_config(bus, devfn, 0x18, 4,
+				(0x00000000 | ((bus->number + 1) << 16) |
+				((bus->number + 1) << 8) | bus->number));
+			BUG_ON((port->owin_res->start + SZ_48M >> 16) & 0xf);
+			soc_pci_write_config(bus, devfn, PCI_MEMORY_BASE, 2,
+				port->owin_res->start + SZ_48M >> 16);
+			BUG_ON(((port->owin_res->start + SZ_48M + SZ_32M) >> 16) & 0xf);
+			soc_pci_write_config(bus, devfn, PCI_MEMORY_LIMIT, 2,
+				(port->owin_res->start + SZ_48M + SZ_32M) >> 16);
+
+			soc_pci_read_config(bus, devfn, 0x92, 2, &bm);
+			if (bm & PCI_EXP_LNKSTA_DLLLA)
+				port->port1active = 1;
+
+			printk("bm = %04x\n devfn = = %08x, bus = %08x\n", bm, devfn, bus->number);
+		} else if (devfn == 0x38) {
+			soc_pci_write_config(bus, devfn, 0x18, 4,
+				(0x00000000 | ((bus->number + 2) << 16) |
+				((bus->number + 2) << 8) | bus->number));
+			BUG_ON((port->owin_res->start + (SZ_48M * 2) >> 16) & 0xf);
+			soc_pci_write_config(bus, devfn, PCI_MEMORY_BASE, 2,
+				port->owin_res->start  + (SZ_48M * 2) >> 16);
+			BUG_ON(((port->owin_res->start + (SZ_48M * 2) + SZ_32M) >> 16) & 0xf);
+			soc_pci_write_config(bus, devfn, PCI_MEMORY_LIMIT, 2,
+				(port->owin_res->start + (SZ_48M * 2) + SZ_32M) >> 16);
+
+			soc_pci_read_config(bus, devfn, 0x92, 2, &bm);
+			if (bm & PCI_EXP_LNKSTA_DLLLA)
+				port->port2active = 1;
+
+			printk("bm = %04x\n devfn = = %08x, bus = %08x\n", bm, devfn, bus->number);
+		}
+	}
+}
+
 static int soc_pci_read_config(struct pci_bus *bus, unsigned int devfn,
 	int where, int size, u32 *val)
 {
@@ -499,7 +581,12 @@ static int soc_pci_read_config(struct pci_bus *bus, unsigned int devfn,
 
 	if (port->isswitch == 1) {
 		if (bus->number == (bus_inc + 2)) {
-			if (!((devfn == 0x8) || (devfn == 0x10))) {
+			if (port->switch_id == PLX_SWITCH_ID &&
+			    !((devfn == 0x8) || (devfn == 0x10))) {
+				*val = ~0UL;
+				return PCIBIOS_SUCCESSFUL;
+			} else if (port->switch_id == ASMEDIA_SWITCH_ID &&
+				!((devfn == 0x18) || (devfn == 0x38))) {
 				*val = ~0UL;
 				return PCIBIOS_SUCCESSFUL;
 			}
@@ -539,13 +626,23 @@ static int soc_pci_read_config(struct pci_bus *bus, unsigned int devfn,
 	}
 
 	if ((bus->number == (bus_inc + 1)) && (port->isswitch == 0) &&
-		(where == 0) && (((data_reg >> 16) & 0x0000FFFF) == 0x00008603)) {
+		(where == 0) && (((data_reg >> 16) & 0xFFFF) == PLX_SWITCH_ID)) {
 		plx_pcie_switch_init(bus, devfn);
+		port->switch_id = PLX_SWITCH_ID;
+		port->isswitch = 1;
+	} else if ((bus->number == (bus_inc + 1)) && (port->isswitch == 0) &&
+		(where == 0) && (((data_reg >> 16) & 0xFFFF) == ASMEDIA_SWITCH_ID)) {
+		asmedia_pcie_switch_init(bus, devfn);
+		port->switch_id = ASMEDIA_SWITCH_ID;
 		port->isswitch = 1;
 	}
 	if ((bus->number == (bus_inc + 2)) && (port->isswitch == 1) &&
-		(where == 0) && (((data_reg >> 16) & 0x0000FFFF) == 0x00008603))
+		(where == 0) && (((data_reg >> 16) & 0xFFFF) == PLX_SWITCH_ID)) {
 		plx_pcie_switch_init(bus, devfn);
+	} else if ((bus->number == (bus_inc + 2)) && (port->isswitch == 1) &&
+		(where == 0) && (((data_reg >> 16) & 0xFFFF) == ASMEDIA_SWITCH_ID)) {
+		asmedia_pcie_switch_init(bus, devfn);
+	}
 
 	/* HEADER_TYPE=00 indicates the port in EP mode */
 
@@ -572,8 +669,12 @@ static int soc_pci_write_config(struct pci_bus *bus, unsigned int devfn,
 		return PCIBIOS_SUCCESSFUL;
 
 	if ((bus->number == (bus_inc + 2)) && (port->isswitch == 1)) {
-		if (!((devfn == 0x8) || (devfn == 0x10)))
+		if (port->switch_id == PLX_SWITCH_ID && !((devfn == 0x8) || (devfn == 0x10))) {
 			return PCIBIOS_SUCCESSFUL;
+		} else if (port->switch_id == ASMEDIA_SWITCH_ID &&
+			!((devfn == 0x18) || (devfn == 0x38))) {
+			return PCIBIOS_SUCCESSFUL;
+		}
 	}
 	else if ((bus->number == (bus_inc + 3)) && (port->isswitch == 1)) {
 		if (devfn != 0)
@@ -1014,84 +1115,88 @@ bcm5301x_usb30_phy_init(void)
 	writel(0x0000009a, ccb_mii_mng_ctrl_addr);
 	OSL_DELAY(2);
 
-	if (CHIPID(sih->chip) == BCM4707_CHIP_ID) {
-		/* Chiprev 4 for NS-B0 and chiprev 6 for NS-B1 */
-		if (CHIPREV(sih->chiprev) == 4 || CHIPREV(sih->chiprev) == 6) {
-			/* USB3 PLL Block */
-			SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
-			writel(0x587e8000, ccb_mii_mng_cmd_data_addr);
+	/* NS-Bx and NS47094
+	 * Chiprev 4 for NS-B0 and chiprev 6 for NS-B1 */
+	if ((CHIPID(sih->chip) == BCM4707_CHIP_ID &&
+	    (CHIPREV(sih->chiprev) == 4 || CHIPREV(sih->chiprev) == 6)) ||
+	    (CHIPID(sih->chip) == BCM47094_CHIP_ID)) {
 
-			/* Clear ana_pllSeqStart */
-			SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
-			writel(0x58061000, ccb_mii_mng_cmd_data_addr);
+		/* USB3 PLL Block */
+		SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
+		writel(0x587e8000, ccb_mii_mng_cmd_data_addr);
 
-			/* CMOS Divider ratio to 25 */
-			SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
-			writel(0x582a6400, ccb_mii_mng_cmd_data_addr);
+		/* Clear ana_pllSeqStart */
+		SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
+		writel(0x58061000, ccb_mii_mng_cmd_data_addr);
 
-			/* Asserting PLL Reset */
-			SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
-			writel(0x582ec000, ccb_mii_mng_cmd_data_addr);
+		/* CMOS Divider ratio to 25 */
+		SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
+		writel(0x582a6400, ccb_mii_mng_cmd_data_addr);
 
-			/* Deaaserting PLL Reset */
-			SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
-			writel(0x582e8000, ccb_mii_mng_cmd_data_addr);
+		/* Asserting PLL Reset */
+		SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
+		writel(0x582ec000, ccb_mii_mng_cmd_data_addr);
 
-			/* Deasserting USB3 system reset */
-			writel(0x00000000, usb3_idm_idm_reset_ctrl_addr);
+		/* Deaaserting PLL Reset */
+		SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
+		writel(0x582e8000, ccb_mii_mng_cmd_data_addr);
 
-			/* Set ana_pllSeqStart */
-			SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
-			writel(0x58069000, ccb_mii_mng_cmd_data_addr);
+		/* Deasserting USB3 system reset */
+		writel(0x00000000, usb3_idm_idm_reset_ctrl_addr);
 
-			/* RXPMD block */
-			SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
-			writel(0x587e8020, ccb_mii_mng_cmd_data_addr);
+		/* Set ana_pllSeqStart */
+		SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
+		writel(0x58069000, ccb_mii_mng_cmd_data_addr);
 
-			/* CDR int loop locking BW to 1 */
-			SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
-			writel(0x58120049, ccb_mii_mng_cmd_data_addr);
+		/* RXPMD block */
+		SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
+		writel(0x587e8020, ccb_mii_mng_cmd_data_addr);
 
-			/* CDR int loop acquisition BW to 1 */
-			SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
-			writel(0x580e0049, ccb_mii_mng_cmd_data_addr);
+		/* CDR int loop locking BW to 1 */
+		SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
+		writel(0x58120049, ccb_mii_mng_cmd_data_addr);
 
-			/* CDR prop loop BW to 1 */
-			SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
-			writel(0x580a005c, ccb_mii_mng_cmd_data_addr);
+		/* CDR int loop acquisition BW to 1 */
+		SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
+		writel(0x580e0049, ccb_mii_mng_cmd_data_addr);
 
-			/* Waiting MII Mgt interface idle */
-			SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
-		} else {
-			/* PLL30 block */
-			SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
-			writel(0x587e8000, ccb_mii_mng_cmd_data_addr);
+		/* CDR prop loop BW to 1 */
+		SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
+		writel(0x580a005c, ccb_mii_mng_cmd_data_addr);
 
-			SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
-			writel(0x582a6400, ccb_mii_mng_cmd_data_addr);
+		/* Waiting MII Mgt interface idle */
+		SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
+	}
+	/* NS-Ax */
+	else if (CHIPID(sih->chip) == BCM4707_CHIP_ID) {
+		/* PLL30 block */
+		SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
+		writel(0x587e8000, ccb_mii_mng_cmd_data_addr);
 
-			SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
-			writel(0x587e80e0, ccb_mii_mng_cmd_data_addr);
+		SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
+		writel(0x582a6400, ccb_mii_mng_cmd_data_addr);
 
-			SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
-			writel(0x580a009c, ccb_mii_mng_cmd_data_addr);
+		SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
+		writel(0x587e80e0, ccb_mii_mng_cmd_data_addr);
 
-			/* Enable SSC */
-			SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
-			writel(0x587e8040, ccb_mii_mng_cmd_data_addr);
+		SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
+		writel(0x580a009c, ccb_mii_mng_cmd_data_addr);
 
-			SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
-			writel(0x580a21d3, ccb_mii_mng_cmd_data_addr);
+		/* Enable SSC */
+		SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
+		writel(0x587e8040, ccb_mii_mng_cmd_data_addr);
 
-			SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
-			writel(0x58061003, ccb_mii_mng_cmd_data_addr);
+		SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
+		writel(0x580a21d3, ccb_mii_mng_cmd_data_addr);
 
-			/* Waiting MII Mgt interface idle */
-			SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
+		SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
+		writel(0x58061003, ccb_mii_mng_cmd_data_addr);
 
-			/* Deasserting USB3 system reset */
-			writel(0x00000000, usb3_idm_idm_reset_ctrl_addr);
-		}
+		/* Waiting MII Mgt interface idle */
+		SPINWAIT((((readl(ccb_mii_mng_ctrl_addr) >> 8) & 1) == 1), 1000);
+
+		/* Deasserting USB3 system reset */
+		writel(0x00000000, usb3_idm_idm_reset_ctrl_addr);
 	}
 	else if (CHIPID(sih->chip) == BCM53018_CHIP_ID) {
 		/* USB3 PLL Block */

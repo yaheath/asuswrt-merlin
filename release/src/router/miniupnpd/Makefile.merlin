@@ -71,6 +71,9 @@ ifeq ($(TEST), 1)
 CFLAGS := $(CFLAGS) -DIPTABLES_143
 # the following sucks, but works
 LIBS = $(IPTABLESPATH)/libiptc/.libs/libip4tc.o
+ifeq ($(RTCONFIG_IPV6), y)
+LIBS += $(IPTABLESPATH)/libiptc/.libs/libip6tc.o 
+endif
 else	# ifeq ($(TEST), 1)
 LIBS = $(IPTABLESPATH)/libiptc/libiptc.a
 endif	# ifeq ($(TEST), 1)
@@ -233,3 +236,4 @@ testgetroute.o: config.h miniupnpdtypes.h
 testasyncsendto.o: miniupnpdtypes.h config.h upnputils.h asyncsendto.h
 testportinuse.o: macros.h config.h portinuse.h
 miniupnpdctl.o: macros.h
+

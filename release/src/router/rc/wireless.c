@@ -45,12 +45,14 @@ int wds_enable(void)
 #endif
 
 #ifdef CONFIG_BCMWL5
-void
+int
 start_nas(void)
 {
-	stop_nas();
+	char *nas_argv[] = { "nas", NULL };
+	pid_t pid;
 
-	system("nas&");
+	stop_nas();
+	return _eval(nas_argv, NULL, 0, &pid);
 }
 
 void
@@ -145,7 +147,18 @@ int wlcscan_main(void)
 	/* Starting scanning */
 	i = 0;
 	foreach (word, nvram_safe_get("wl_ifnames"), next) {
+#if defined(RTAC88U) || defined(RTAC3100) || defined(RTAC5300)
+		int count = 0;
+		nvram_set_int("wlcscan_idx", 0);
+WLCSCAN_LOOP:
+#endif
 		wlcscan_core(APSCAN_INFO, word);
+#if defined(RTAC88U) || defined(RTAC3100) || defined(RTAC5300)
+		if (count++ < 2) {
+			nvram_set_int("wlcscan_idx", count);
+			goto WLCSCAN_LOOP;
+		}
+#endif
 		// suppose only two or less interface handled
 		nvram_set_int("wlc_scan_state", WLCSCAN_STATE_2G+i);
 		i++;
@@ -226,7 +239,7 @@ _dprintf("Ready to disconnect...%d.\n", wlc_count);
 #else
 #ifdef RTCONFIG_QCA
 #ifdef RTCONFIG_PROXYSTA
-					if (nvram_get_int("sw_mode") == SW_MODE_REPEATER && nvram_get_int("wlc_psta") == 1)
+					if (mediabridge_mode())
 						sleep(10);
 					else
 #endif

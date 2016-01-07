@@ -898,7 +898,7 @@ int nvram_get_file(const char *key, const char *fname, int max)
 	}
 	return r;
 /*
-	char b[2048];
+	char b[3500];
 	int n;
 	char *p;
 
@@ -935,8 +935,8 @@ int nvram_set_file(const char *key, const char *fname, int max)
 	}
 	return r;
 /*
-	char a[2048];
-	char b[4096];
+	char a[3500];
+	char b[7000];
 	int n;
 
 	if (((n = f_read(fname, &a, sizeof(a))) > 0) && (n <= max)) {
@@ -1038,6 +1038,10 @@ void bcmvlan_models(int model, char *vlan)
 	case MODEL_RTAC53U:
 	case MODEL_RTAC3200:
 	case MODEL_RTAC88U:
+	case MODEL_RTAC3100:
+	case MODEL_RTAC5300:
+	case MODEL_RTAC1200G:
+	case MODEL_RTAC1200GP:
 		strcpy(vlan, "vlan1");
 		break;
 	case MODEL_RTN53:
@@ -1151,6 +1155,10 @@ unsigned int netdev_calc(char *ifname, char *ifname_desc, unsigned long *rx, uns
 		if(model == MODEL_DSLAC68U)
 			return 1;
 
+#ifdef RTCONFIG_BCM5301X_TRAFFIC_MONITOR
+			return 1;
+#endif
+
 		// special handle for non-tag wan of broadcom solution
 		// pretend vlanX is must called after ethX
 		if(nvram_match("switch_wantag", "none")) { //Don't calc if select IPTV
@@ -1163,17 +1171,19 @@ unsigned int netdev_calc(char *ifname, char *ifname_desc, unsigned long *rx, uns
 				*tx2 = backup_tx;				
 				/* Cherry Cho modified for RT-AC3200 Bug#202 in 2014/11/4. */	
 				unit = get_wan_unit("eth0");
-#ifdef RTCONFIG_DUALWAN
-				if (((nvram_match("wans_mode", "fo") || nvram_match("wans_mode", "fb")) && (unit == wan_primary_ifunit())) || 
-					nvram_match("wans_mode", "lb"))
-#endif	/* RTCONFIG_DUALWAN */
+
+#ifdef RTCONFIG_DUALWAN			
+				if ( (unit == wan_primary_ifunit()) || ( !strstr(nvram_safe_get("wans_dualwan"), "none") && nvram_match("wans_mode", "lb")) )
 				{
 					if (unit == WAN_UNIT_FIRST)
 						strcpy(ifname_desc2, "INTERNET");
 					else
 						sprintf(ifname_desc2,"INTERNET%d", unit);
-				}	
-
+				}									
+#else
+				if(unit == wan_primary_ifunit())
+					strcpy(ifname_desc2, "INTERNET");					
+#endif	/* RTCONFIG_DUALWAN */
 			}
 		}//End of switch_wantag
 
@@ -1195,33 +1205,39 @@ unsigned int netdev_calc(char *ifname, char *ifname_desc, unsigned long *rx, uns
 			get_mt7621_wan_unit_bytecount(unit, tx, rx);
 #endif			
 #endif
+#ifndef RTCONFIG_BCM5301X_TRAFFIC_MONITOR
 			if(strlen(modelvlan) && strcmp(ifname, "eth0")==0) {
 				backup_rx = *rx;
 				backup_tx = *tx;
 				backup_set  = 1;
 			}
 			else{
+#endif
 #ifdef RTCONFIG_DUALWAN
-				if (((nvram_match("wans_mode", "fo") || nvram_match("wans_mode", "fb")) && (unit == wan_primary_ifunit())) || 
-					nvram_match("wans_mode", "lb"))
-#endif	/* RTCONFIG_DUALWAN */
+				if ( (unit == wan_primary_ifunit()) || ( !strstr(nvram_safe_get("wans_dualwan"), "none") && nvram_match("wans_mode", "lb")) )
 				{
 					if (unit == WAN_UNIT_FIRST) {	
 						strcpy(ifname_desc, "INTERNET");
 						return 1;
 					}
-					else { 
+					else {
 						sprintf(ifname_desc,"INTERNET%d", unit);
 						return 1;
 					}
 				}
+#else
+				if(unit == wan_primary_ifunit()){
+					strcpy(ifname_desc, "INTERNET");
+					return 1;
+				}			
+#endif	/* RTCONFIG_DUALWAN */
+#ifndef RTCONFIG_BCM5301X_TRAFFIC_MONITOR
 			}
+#endif
 		}
 		else if (dualwan_unit__usbif(unit)) {
 #ifdef RTCONFIG_DUALWAN
-			if (((nvram_match("wans_mode", "fo") || nvram_match("wans_mode", "fb")) && (unit == wan_primary_ifunit())) || 
-					nvram_match("wans_mode", "lb"))
-#endif	/* RTCONFIG_DUALWAN */
+			if ( (unit == wan_primary_ifunit()) || ( !strstr(nvram_safe_get("wans_dualwan"), "none") && nvram_match("wans_mode", "lb")) )
 			{
 				if(unit == WAN_UNIT_FIRST){//Cherry Cho modified in 2014/11/4.
 					strcpy(ifname_desc, "INTERNET");
@@ -1231,7 +1247,13 @@ unsigned int netdev_calc(char *ifname, char *ifname_desc, unsigned long *rx, uns
 					sprintf(ifname_desc,"INTERNET%d", unit);
 					return 1;
 				}
-			}
+			}					
+#else
+			if(unit == wan_primary_ifunit()){
+				strcpy(ifname_desc, "INTERNET");
+				return 1;
+			}	
+#endif	/* RTCONFIG_DUALWAN */
 		}
 		else {
 			_dprintf("%s: unknown ifname %s\n", __func__, ifname);
@@ -1333,13 +1355,17 @@ _dprintf("%s: Finish.\n", __FUNCTION__);
 void logmessage_normal(char *logheader, char *fmt, ...){
   va_list args;
   char buf[512];
+  int level;
 
   va_start(args, fmt);
 
   vsnprintf(buf, sizeof(buf), fmt, args);
 
+  level = nvram_get_int("message_loglevel");
+  if (level > 7) level = 7;
+
   openlog(logheader, 0, 0);
-  syslog(0, buf);
+  syslog(level, buf);
   closelog();
   va_end(args);
 }
@@ -1402,7 +1428,11 @@ int is_psta(int unit)
 {
 	if (unit < 0) return 0;
 	if ((nvram_get_int("sw_mode") == SW_MODE_AP) &&
-		(nvram_get_int("wlc_psta") == 1) &&
+		((nvram_get_int("wlc_psta") == 1)
+#ifdef RTCONFIG_BCM_7114
+		|| (nvram_get_int("wlc_psta") == 3)
+#endif
+		) &&
 		((nvram_get_int("wlc_band") == unit)
 #ifdef PXYSTA_DUALBAND
 		|| (nvram_match("exband", "1") && nvram_get_int("wlc_band_ex") == unit)
@@ -1459,6 +1489,19 @@ END:
 	return 0;
 }
 
+int psr_exist()
+{
+	char word[256], *next;
+	int idx = 0;
+
+	foreach (word, nvram_safe_get("wl_ifnames"), next) {
+		if (is_psr(idx)) return 1;
+		idx++;
+	}
+
+	return 0;
+}
+
 int psr_exist_except(int unit)
 {
 	char word[256], *next;
@@ -1477,29 +1520,89 @@ END:
 #endif
 
 #ifdef RTCONFIG_OPENVPN
-char *get_parsed_crt(const char *name, char *buf)
+char *get_parsed_crt(const char *name, char *buf, size_t buf_len)
 {
 	char *value;
 	int len, i;
+#if defined(RTCONFIG_JFFS2) || defined(RTCONFIG_BRCM_NAND_JFFS2) || defined(RTCONFIG_UBIFS)
+	FILE *fp;
+	char tmpBuf[256] = {0};
+	char *p = buf;
+#endif
 
 	value = nvram_safe_get(name);
-
 	len = strlen(value);
 
-	for (i=0; (i < len); i++) {
-		if (value[i] == '>')
-			buf[i] = '\n';
-		else
-			buf[i] = value[i];
+#if defined(RTCONFIG_JFFS2) || defined(RTCONFIG_BRCM_NAND_JFFS2) || defined(RTCONFIG_UBIFS)
+	if(!check_if_dir_exist(OVPN_FS_PATH))
+		mkdir(OVPN_FS_PATH, S_IRWXU);
+	snprintf(tmpBuf, sizeof(tmpBuf) -1, "%s/%s", OVPN_FS_PATH, name);
+#endif
+
+	if(len) {
+		for (i=0; (i < len); i++) {
+			if (value[i] == '>')
+				buf[i] = '\n';
+			else
+				buf[i] = value[i];
+		}
+		buf[i] = '\0';
+
+#if defined(RTCONFIG_JFFS2) || defined(RTCONFIG_BRCM_NAND_JFFS2) || defined(RTCONFIG_UBIFS)
+		//save to file and then clear nvram value
+		fp = fopen(tmpBuf, "w");
+		if(fp) {
+			chmod(tmpBuf, S_IRUSR|S_IWUSR);
+			fprintf(fp, "%s", buf);
+			fclose(fp);
+			nvram_set(name, "");
+		}
+#endif
 	}
-
-	buf[i] = '\0';
-
+	else {
+#if defined(RTCONFIG_JFFS2) || defined(RTCONFIG_BRCM_NAND_JFFS2) || defined(RTCONFIG_UBIFS)
+		//nvram value cleard, get from file
+		fp = fopen(tmpBuf, "r");
+		if(fp) {
+			while(fgets(buf, buf_len, fp)) {
+				if(!strncmp(buf, "-----BEGIN", 10))
+					break;
+			}
+			if(feof(fp)) {
+				fclose(fp);
+				memset(buf, 0, buf_len);
+				return buf;
+			}
+			p += strlen(buf);
+			memset(tmpBuf, 0, sizeof(tmpBuf));
+			while(fgets(tmpBuf, sizeof(tmpBuf), fp)) {
+				strncpy(p, tmpBuf, strlen(tmpBuf));
+				p += strlen(tmpBuf);
+			}
+			*p = '\0';
+			fclose(fp);
+		}
+#endif
+	}
 	return buf;
 }
 
 int set_crt_parsed(const char *name, char *file_path)
 {
+#if defined(RTCONFIG_JFFS2) || defined(RTCONFIG_BRCM_NAND_JFFS2) || defined(RTCONFIG_UBIFS)
+	char target_file_path[128] ={0};
+
+	if(!check_if_dir_exist(OVPN_FS_PATH))
+		mkdir(OVPN_FS_PATH, S_IRWXU);
+
+	if(check_if_file_exist(file_path)) {
+		snprintf(target_file_path, sizeof(target_file_path) -1, "%s/%s", OVPN_FS_PATH, name);
+		return eval("cp", file_path, target_file_path);
+	}
+	else {
+		return -1;
+	}
+#else
 	FILE *fp=fopen(file_path, "r");
 	char buffer[4000] = {0};
 	char buffer2[256] = {0};
@@ -1518,13 +1621,13 @@ int set_crt_parsed(const char *name, char *file_path)
 			return -EINVAL;
 		}
 		p += strlen(buffer);
-		if( *(p-1) == '\n' )
-			*(p-1) = '>';
+		//if( *(p-1) == '\n' )
+			//*(p-1) = '>';
 		while(fgets(buffer2, sizeof(buffer2), fp)) {
 			strncpy(p, buffer2, strlen(buffer2));
 			p += strlen(buffer2);
-			if( *(p-1) == '\n' )
-				*(p-1) = '>';
+			//if( *(p-1) == '\n' )
+				//*(p-1) = '>';
 		}
 		*p = '\0';
 		nvram_set(name, buffer);
@@ -1533,6 +1636,42 @@ int set_crt_parsed(const char *name, char *file_path)
 	}
 	else
 		return -ENOENT;
+#endif
+}
+
+int ovpn_crt_is_empty(const char *name)
+{
+	char file_path[128] ={0};
+	struct stat st;
+
+	if( nvram_is_empty(name) ) {
+#if defined(RTCONFIG_JFFS2) || defined(RTCONFIG_BRCM_NAND_JFFS2) || defined(RTCONFIG_UBIFS)
+		//check file
+		if(d_exists(OVPN_FS_PATH)) {
+			snprintf(file_path, sizeof(file_path) -1, "%s/%s", OVPN_FS_PATH, name);
+			if(stat(file_path, &st) == 0) {
+				if( !S_ISDIR(st.st_mode) && st.st_size ) {
+					return 0;
+				}
+				else {
+					return 1;
+				}
+			}
+			else {
+				return 1;
+			}
+		}
+		else {
+			mkdir(OVPN_FS_PATH, S_IRWXU);
+			return 1;
+		}
+#else
+		return 1;
+#endif
+	}
+	else {
+		return 0;
+	}
 }
 #endif
 
@@ -1667,18 +1806,20 @@ int check_bwdpi_nvram_setting()
 	if(nvram_get_int("wrs_enable") == 0 && nvram_get_int("wrs_app_enable") == 0 && 
 		nvram_get_int("wrs_vp_enable") == 0 && nvram_get_int("wrs_cc_enable") == 0 &&
 		nvram_get_int("wrs_mals_enable") == 0 &&
-		nvram_get_int("wrs_adblock_popup") == 0 && nvram_get_int("wrs_adblock_stream") == 0 &&
 		nvram_get_int("bwdpi_db_enable") == 0 &&
+		nvram_get_int("apps_analysis") == 0 &&
+		nvram_get_int("bwdpi_wh_enable") == 0 &&
 		nvram_get_int("qos_enable") == 0)
 		enabled = 0;
 
-	// check traditional qos service
+	// check qos service (not adaptive qos)
 	if(nvram_get_int("wrs_enable") == 0 && nvram_get_int("wrs_app_enable") == 0 && 
 		nvram_get_int("wrs_vp_enable") == 0 && nvram_get_int("wrs_cc_enable") == 0 &&
 		nvram_get_int("wrs_mals_enable") == 0 &&
-		nvram_get_int("wrs_adblock_popup") == 0 && nvram_get_int("wrs_adblock_stream") == 0 &&
 		nvram_get_int("bwdpi_db_enable") == 0 &&
-		nvram_get_int("qos_enable") == 1 && nvram_get_int("qos_type") == 0)
+		nvram_get_int("apps_analysis") == 0 &&
+		nvram_get_int("bwdpi_wh_enable") == 0 &&
+		nvram_get_int("qos_enable") == 1 && nvram_get_int("qos_type") != 1)
 		enabled = 0;
 
 	if(debug) dbg("[check_bwdpi_nvram_setting] enabled= %d\n", enabled);
@@ -1686,6 +1827,71 @@ int check_bwdpi_nvram_setting()
 	return enabled;
 }
 #endif
+
+/*
+	transfer timestamp into date
+	ex. date = 2014-07-14 19:20:10
+*/
+void StampToDate(unsigned long timestamp, char *date)
+{
+	struct tm *local;
+	time_t now;
+	
+	now = timestamp;
+	local = localtime(&now);
+	strftime(date, 30, "%Y-%m-%d %H:%M:%S", local);
+}
+
+/*
+	check filesize is over or not
+	if over size, return 1, else return 0
+*/
+int check_filesize_over(char *path, long int size)
+{
+	struct stat st;
+	off_t cursize;
+
+	stat(path, &st);
+	cursize = st.st_size;
+
+	size = size * 1024; // KB
+
+	if(cursize > size)
+		return 1;
+	else
+		return 0;
+}
+
+/*
+	get last month's timestamp
+	ex.
+	now = 1445817600
+	tm  = 2015/10/26 00:00:00
+	t   = 2015/10/01 00:00:00
+	t_t = 1443628800
+*/
+time_t get_last_month_timestamp()
+{
+	struct tm local, t;
+	time_t now, t_t = 0;
+			
+	// get timestamp and tm
+	time(&now);
+	localtime_r(&now, &local);
+
+	// copy t from local
+	t.tm_year = local.tm_year;
+	t.tm_mon = local.tm_mon;
+	t.tm_mday = 1;
+	t.tm_hour = 0;
+	t.tm_min = 0;
+	t.tm_sec = 0;
+
+	// transfer tm to timestamp
+	t_t = mktime(&t);
+
+	return t_t;
+}
 
 int get_iface_hwaddr(char *name, unsigned char *hwaddr)
 {

@@ -27,25 +27,11 @@
 
 // disable auto log out
 AUTOLOGOUT_MAX_MINUTE = 0;
-
+iptraffic = [];
 <% backup_nvram("wan_ifname,cstats_enable,lan_ipaddr,lan_netmask,dhcp_staticlist"); %>;
-
 var client_list_array = '<% get_client_detail_info(); %>';
-
 var cstats_busy = 0;
-
-try {
-	<% iptraffic(); %>
-}
-catch (ex) {
-	iptraffic = [];
-	cstats_busy = 1;
-}
-
-if (typeof(iptraffic) == 'undefined') {
-	iptraffic = [];
-	cstats_busy = 1;
-}
+<% iptraffic(); %>;
 
 sortColumn = 0;
 var updating = 0;
@@ -118,6 +104,7 @@ function redraw() {
 	if ((updating) || (cstats_busy)) return;
 
 	var hostslisted = [];
+	genClientList();
 
 	var grid;
 	var i, b, x;
@@ -192,11 +179,13 @@ function redraw() {
 
 		var h = b[0];
 		var clientObj;
+		var clientName;
 
 		if (getRadioValue(document.form._f_show_hostnames) == 1) {
 			clientObj = clientFromIP(b[0]);
-			if ((clientObj) && (clientObj.name != "")) {
-				h = "<b>" + clientObj.name + '</b>  <small>(' + b[0] + ')</small>';
+			if (clientObj) {
+				clientName = (clientObj.nickName == "") ? clientObj.hostname : clientObj.nickName;
+				h = "<b>" + clientName.shorter(16) + '</b> <small>(' + b[0] + ')</small>';
 			}
 		}
 
@@ -462,8 +451,8 @@ function init() {
 		setRadioValue(document.form._f_show_hostnames , (c == 1))
 	}
 
+	show_menu();
 	update_visibility();
-
 	ref.start();
 }
 
@@ -487,7 +476,7 @@ function switchPage(page){
 </script>
 </head>
 
-<body onload="show_menu();init();" >
+<body onload="init();">
 
 <div id="TopBanner"></div>
 

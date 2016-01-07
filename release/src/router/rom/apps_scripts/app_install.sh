@@ -115,7 +115,7 @@ _check_log_message(){
 _loop_delay(){
 	i=0
 	while [ $i -lt $1 ]; do
-		i=$(($i+1))
+		i=$((i+1))
 		echo "."
 	done
 }
@@ -232,26 +232,26 @@ echo "file_ver4=$file_ver4, list_ver4=$list_ver4."
 		fi
 		i=0
 		while [ $i -lt $wget_timeout ] && [ ! -f "$target" ]; do
-			i=$(($i+1))
+			i=$((i+1))
 			sleep 1
 		done
 
 		wget_pid=`pidof wget`
 		size=`app_get_field.sh $1 Size 2`
 		target_size=`ls -l $target |awk '{printf $5}'`
-		percent=$(($target_size*100/$size))
+		percent=$((target_size*100/size))
 		nvram set apps_download_percent=$percent
 		while [ -n "$wget_pid" ] && [ -n "$target_size" ] && [ $target_size -lt $size ]; do
 			sleep 1
 
 			wget_pid=`pidof wget`
 			target_size=`ls -l $target |awk '{printf $5}'`
-			percent=$(($target_size*100/$size))
+			percent=$((target_size*100/size))
 			nvram set apps_download_percent=$percent
 		done
 
 		target_size=`ls -l $target |awk '{printf $5}'`
-		percent=$(($target_size*100/$size))
+		percent=$((target_size*100/size))
 		nvram set apps_download_percent=$percent
 		if [ -z "$percent" ] || [ $percent -ne 100 ]; then
 			rm -rf $target
@@ -362,7 +362,7 @@ fi
 
 nvram set apps_state_install=3 # DOWNLOADING
 link_internet=`nvram get link_internet`
-if [ "$link_internet" != "1" ]; then
+if [ "$link_internet" != "2" ]; then
 	cp -f $apps_local_space/optware.asus $APPS_INSTALL_PATH/lib/ipkg/lists/
 	if [ -n "$third_lib" ]; then
 		cp -f $apps_local_space/optware.$third_lib $APPS_INSTALL_PATH/lib/ipkg/lists/
@@ -563,8 +563,7 @@ fi
 echo "Enabling the package: $1..."
 app_set_enabled.sh $1 "yes"
 
-link_internet=`nvram get link_internet`
-if [ "$link_internet" == "1" ]; then
+if [ "$link_internet" == "2" ]; then
 	app_update.sh&
 fi
 

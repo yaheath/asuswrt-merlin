@@ -22,10 +22,32 @@ static inline int check_host_key(const char *ktype, const char *nvname, const ch
 	return 0;
 }
 
+char *get_parsed_key(const char *name, char *buf)
+{
+	char *value;
+	int len, i;
+
+	value = nvram_safe_get(name);
+
+	len = strlen(value);
+	if (len > 3500) len = 3500;
+
+	for (i=0; (i < len); i++) {
+		if (value[i] == '>')
+			buf[i] = '\n';
+		else
+			buf[i] = value[i];
+	}
+
+	buf[i] = '\0';
+
+	return buf;
+}
+
 void start_sshd(void)
 {
 	int dirty = 0;
-	char buf[2048];
+	char buf[3500];
 
         if (!nvram_match("sshd_enable", "1"))
                 return;
@@ -33,7 +55,7 @@ void start_sshd(void)
 	mkdir("/etc/dropbear", 0700);
 	mkdir("/root/.ssh", 0700);
 
-	f_write_string("/root/.ssh/authorized_keys", get_parsed_crt("sshd_authkeys", buf), 0, 0700);
+	f_write_string("/root/.ssh/authorized_keys", get_parsed_key("sshd_authkeys", buf), 0, 0700);
 
 	dirty |= check_host_key("rsa", "sshd_hostkey", "/etc/dropbear/dropbear_rsa_host_key");
 	dirty |= check_host_key("dss", "sshd_dsskey",  "/etc/dropbear/dropbear_dss_host_key");

@@ -36,6 +36,7 @@ config.sub
 configure
 configure.h
 depcomp
+doxygen/
 stamp-h1
 install-sh
 missing

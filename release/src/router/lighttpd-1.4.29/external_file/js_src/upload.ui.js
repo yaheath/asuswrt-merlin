@@ -15,7 +15,12 @@ function openUploadPanel(option){
 			$modalWindow.jqmShow();
 		}
 	}
-	else{		
+	else{
+		if (typeof FileReader == "undefined"){
+			alert("The browser does not support the file upload method, please use other browser ( ex. chrome, firefox ) to upload your files.");
+			return;
+		}
+		
 		g_upload_mode = 1;
 		g_upload_option = option;
 				
@@ -42,7 +47,7 @@ function openUploadPanel(option){
 				}
 			}
   		});		
-	}	
+	}
 }
 
 function closeUploadPanel(v){
@@ -201,7 +206,7 @@ function createUploadLayout(){
 		
 		if(document.getElementById('directorys'))
 			document.getElementById('directorys').addEventListener('change', handleFileSelect, false);
-		
+			
 		$("#upload-files-list-view").click(function(){
 			$("#upload-container").hide();
 			$("#upload-file-list-container").fadeIn();
@@ -231,6 +236,25 @@ function createUploadLayout(){
 			openUploadPanel(1);
 		});
 	}
+}
+
+function clearFileInput(id) 
+{ 
+    var oldInput = document.getElementById(id); 
+
+    var newInput = document.createElement("input"); 
+
+    newInput.type = "file"; 
+    newInput.id = oldInput.id; 
+    newInput.name = oldInput.name; 
+    newInput.className = oldInput.className; 
+    newInput.style.cssText = oldInput.style.cssText; 
+    // TODO: copy any other relevant attributes 
+
+    oldInput.parentNode.replaceChild(newInput, oldInput);
+    
+    if(document.getElementById(id))
+		document.getElementById(id).addEventListener('change', handleFileSelect, false);
 }
 
 function refreshUploadLayout(){
@@ -430,6 +454,7 @@ function outputUploadResult(){
 }
 
 function start_upload(){
+	
 	if (!this_upload_files.length) {
 		alert(m.getString('warn_selfile'));
 		return;
@@ -462,6 +487,9 @@ function stop_upload(){
 	g_storage.set('isOnUploadFile', "0");
 	
 	g_upload_handler = null;
+	
+	clearFileInput("files");
+	clearFileInput("directorys");
 	
 	outputUploadResult();
 }

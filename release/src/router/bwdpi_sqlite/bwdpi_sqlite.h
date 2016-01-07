@@ -1,7 +1,7 @@
-#define TRAFFIC_DB_PATH "/jffs/traffic.db"
 #define MON_SEC 86400 * 31
 #define DAY_SEC 86400
 #define HOURSEC 3600
+#define QUERY_LEN 1024
 
 // table.c
 extern int sql_get_table(sqlite3 *db, const char *sql, char ***pazResult, int *pnRow, int *pnColumn);

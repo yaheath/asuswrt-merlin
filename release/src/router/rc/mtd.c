@@ -194,7 +194,7 @@ int mtd_erase_old(const char *mtdname)
 int mtd_erase(const char *mtdname)
 #endif
 {
-	return _unlock_erase(mtdname, 1);
+	return !_unlock_erase(mtdname, 1);
 }
 
 #ifdef RTCONFIG_BCMARM
@@ -456,6 +456,9 @@ mtd_erase(const char *mtd)
         int mtd_fd;
         mtd_info_t mtd_info;
         erase_info_t erase_info;
+#ifdef RTAC87U
+	char erase_err[255] = {0};
+#endif
 
         /* Open MTD device */
         if ((mtd_fd = mtd_open(mtd, O_RDWR)) < 0) {
@@ -479,11 +482,19 @@ mtd_erase(const char *mtd)
                 if (ioctl(mtd_fd, MEMERASE, &erase_info) != 0) {
                         perror(mtd);
                         close(mtd_fd);
+#ifdef RTAC87U
+						sprintf(erase_err, "logger -t ATE mtd_erase failed: [%d]", errno);
+						system(erase_err);
+#endif
                         return errno;
                 }
         }
 
         close(mtd_fd);
+#ifdef RTAC87U
+	sprintf(erase_err, "logger -t ATE mtd_erase OK:[%d]", errno);
+	system(erase_err);
+#endif
         return 0;
 }
 

@@ -79,6 +79,7 @@ RGMII_P5 := 0
 DSLAC68U := 0
 RTAC68U := 0
 PATYPE := 0
+BCM470XC0 := 0
 MTDSIZE ?= 64
 DUAL_TRX := 0
 
@@ -144,9 +145,9 @@ ifeq ($(strip $(RTAC68U)),1)
 CFLAGS += -DRTAC68U
 endif
 
-ifeq ($(BUILD_NAME),$(filter $(BUILD_NAME),RT-AC88U RT-AC88B))
+ifeq ($(BUILD_NAME),$(filter $(BUILD_NAME),RT-AC88U RT-AC88B RT-AC5400))
 CFLAGS += -DRTAC68U
-CFLAGS += -DRTAC88B
+CFLAGS += -DRTAC88U -DRTL8365MB
 CFLAGS += -L /opt/hndtools-arm-linux-2.6.36-uclibc-4.5.3/bin/../lib/gcc/arm-brcm-linux-uclibcgnueabi/4.5.3 -lgcc
 endif
 

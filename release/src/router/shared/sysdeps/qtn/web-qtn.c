@@ -48,7 +48,9 @@
 #define	WIFINAME	"wifi0"
 
 static int s_c_rpc_use_udp = 0;
+#if 0	/* remove */
 static int qtn_qcsapi_init = 0;
+#endif
 static int qtn_init = 0;
 
 extern uint8 wf_chspec_ctlchan(chanspec_t chspec);
@@ -90,7 +92,9 @@ int rpc_qcsapi_init(int verbose)
 			continue;
 		} else {
 			client_qcsapi_set_rpcclient(clnt);
+#if 0	/* remove */
 			qtn_qcsapi_init = 1;
+#endif
 			return 0;
 		}
 	} while ((retry++ < MAX_RETRY_TIMES) && ((uptime() - start_time) < MAX_TOTAL_TIME));
@@ -910,6 +914,7 @@ int rpc_qcsapi_wps_registrar_report_pin(const char *ifname, const char *wps_pin)
 	return 0;
 }
 
+#if 0	/* remove */
 int rpc_qcsapi_restore_default_config(int flag)
 {
 	int ret;
@@ -933,6 +938,7 @@ int rpc_qcsapi_restore_default_config(int flag)
 
 	return 0;
 }
+#endif
 
 int rpc_qcsapi_bootcfg_commit(void)
 {
@@ -1142,7 +1148,7 @@ void rpc_set_radio(int unit, int subunit, int on)
 		}
 	}
 	else {
-		ret = qcsapi_wifi_rfenable(WIFINAME, (qcsapi_unsigned_int) on);
+		ret = qcsapi_wifi_rfenable((qcsapi_unsigned_int) on);
 		if (ret < 0)
 			dbG("Qcsapi qcsapi_wifi_rfenable %s, return: %d\n", WIFINAME, ret);
 	}
@@ -1155,11 +1161,16 @@ int rpc_update_ap_isolate(const char *ifname, const int isolate)
 	if(!rpc_qtn_ready())
 		return -1;
 
+	qcsapi_wifi_rfenable((qcsapi_unsigned_int) 0 /* off */);
 	ret = qcsapi_wifi_set_ap_isolate(ifname, isolate);
 	if(ret < 0){
-		dbG("Qcsapi qcsapi_wifi_set_ap_isolate %s error, return: %d\n", ifname, ret);
+		dbG("qcsapi_wifi_set_ap_isolate %s error, return: %d\n", ifname, ret);
 		return ret;
+	}else{
+		dbG("qcsapi_wifi_set_ap_isolate OK\n");
 	}
+	if(nvram_get_int("wl1_radio") == 1)
+		qcsapi_wifi_rfenable((qcsapi_unsigned_int) 1 /* on */);
 
 	return 0;
 }
@@ -1792,6 +1803,87 @@ ej_wl_sta_list_qtn(int eid, webs_t wp, int argc, char_t **argv, const char *ifna
 	if (!rpc_qtn_ready())
 		return retval;
 
+	int from_app = 0;
+	char *name_t = NULL;
+
+	if (strArgs(argc, argv, "%s", &name_t) < 1) {
+		//_dprintf("name_t = NULL\n");
+	} else if (!strncmp(name_t, "appobj", 6))
+		from_app = 1;
+
+	sscanf(ifname, "wifi%d", &index);
+	if (index == -1) return retval;
+	else if (index == 0)
+		sprintf(prefix, "wl%d_", unit);
+	else
+		sprintf(prefix, "wl%d.%d_", unit, index);
+
+	ret = qcsapi_wifi_get_count_associations(ifname, &association_count);
+	if (ret < 0) {
+		dbG("Qcsapi qcsapi_wifi_get_count_associations %s error, return: %d\n", ifname, ret);
+		return retval;
+	} else {
+		for (i = 0; i < association_count; ++i) {
+			rssi = 0;
+			ret = qcsapi_wifi_get_associated_device_mac_addr(ifname, i, (uint8_t *) &sta_address);
+			if (ret < 0) {
+				dbG("Qcsapi qcsapi_wifi_get_associated_device_mac_addr %s error, return: %d\n", ifname, ret);
+				return retval;
+			} else {
+				if (firstRow == 1)
+					firstRow = 0;
+				else
+				retval += websWrite(wp, ", ");
+				if(from_app == 0)
+					retval += websWrite(wp, "[");
+
+				retval += websWrite(wp, "\"%s\"", wl_ether_etoa((struct ether_addr *) &sta_address));
+				if(from_app == 1){
+					retval += websWrite(wp, ":{");
+					retval += websWrite(wp, "\"isWL\":");
+				}
+				if(from_app == 0)
+					retval += websWrite(wp, ", \"%s\"", "Yes");
+				else
+					retval += websWrite(wp, "\"%s\"", "Yes");
+				if(from_app == 0)
+					retval += websWrite(wp, ", \"%s\"", !(nvram_match(strcat_r(prefix, "auth_mode_x", tmp), "open")) ? "Yes" : "No");
+				if(from_app == 1){
+					ret += websWrite(wp, ",\"rssi\":");
+				}
+				ret= qcsapi_wifi_get_rssi_in_dbm_per_association(ifname, i, &rssi);
+				if (ret < 0)
+					dbG("Qcsapi qcsapi_wifi_get_rssi_in_dbm_per_association %s error, return: %d\n", ifname, ret);
+				if(from_app == 0)
+					retval += websWrite(wp, ", \"%d\"", rssi);
+				else
+					retval += websWrite(wp, "\"%d\"", rssi);
+				if(from_app == 0)
+					retval += websWrite(wp, "]");
+				else
+					retval += websWrite(wp, "}");
+			}
+		}
+	}
+
+	return retval;
+}
+
+#ifdef RTCONFIG_STAINFO
+static int
+ej_wl_stainfo_list_qtn(int eid, webs_t wp, int argc, char_t **argv, const char *ifname)
+{
+	int ret, retval = 0, firstRow = 1;;
+	qcsapi_unsigned_int association_count = 0;
+	qcsapi_mac_addr sta_address;
+	int i, rssi, index = -1, unit = 1;
+	char prefix[] = "wlXXXXXXXXXX_", tmp[128];
+	qcsapi_unsigned_int tx_phy_rate, rx_phy_rate, time_associated;
+	int hr, min, sec;
+
+	if (!rpc_qtn_ready())
+		return retval;
+
 	sscanf(ifname, "wifi%d", &index);
 	if (index == -1) return retval;
 	else if (index == 0)
@@ -1818,12 +1910,28 @@ ej_wl_sta_list_qtn(int eid, webs_t wp, int argc, char_t **argv, const char *ifna
 				retval += websWrite(wp, "[");
 
 				retval += websWrite(wp, "\"%s\"", wl_ether_etoa((struct ether_addr *) &sta_address));
-				retval += websWrite(wp, ", \"%s\"", "Yes");
-				retval += websWrite(wp, ", \"%s\"", !(nvram_match(strcat_r(prefix, "auth_mode_x", tmp), "open")) ? "Yes" : "No");
-				ret= qcsapi_wifi_get_rssi_in_dbm_per_association(ifname, i, &rssi);
+
+				tx_phy_rate = rx_phy_rate = time_associated = 0;
+
+				ret = qcsapi_wifi_get_tx_phy_rate_per_association(ifname, i, &tx_phy_rate);
 				if (ret < 0)
-					dbG("Qcsapi qcsapi_wifi_get_rssi_in_dbm_per_association %s error, return: %d\n", ifname, ret);
-				retval += websWrite(wp, ", \"%d\"", rssi);
+					dbG("Qcsapi qcsapi_wifi_get_tx_phy_rate_per_association %s error, return: %d\n", ifname, ret);
+
+				ret = qcsapi_wifi_get_rx_phy_rate_per_association(ifname, i, &rx_phy_rate);
+				if (ret < 0)
+					dbG("Qcsapi qcsapi_wifi_get_rx_phy_rate_per_association %s error, return: %d\n", ifname, ret);
+
+				ret = qcsapi_wifi_get_time_associated_per_association(ifname, i, &time_associated);
+				if (ret < 0)
+					dbG("Qcsapi qcsapi_wifi_get_time_associated_per_association %s error, return: %d\n", ifname, ret);
+
+				hr = time_associated / 3600;
+				min = (time_associated % 3600) / 60;
+				sec = time_associated - hr * 3600 - min * 60;
+
+				retval += websWrite(wp, ", \"%d\"", tx_phy_rate);
+				retval += websWrite(wp, ", \"%d\"", rx_phy_rate);
+				retval += websWrite(wp, ", \"%02d:%02d:%02d\"", hr, min, sec);
 
 				retval += websWrite(wp, "]");
 			}
@@ -1832,6 +1940,7 @@ ej_wl_sta_list_qtn(int eid, webs_t wp, int argc, char_t **argv, const char *ifna
 
 	return retval;
 }
+#endif
 
 int
 ej_wl_sta_list_5g(int eid, webs_t wp, int argc, char_t **argv)
@@ -1860,6 +1969,36 @@ ej_wl_sta_list_5g(int eid, webs_t wp, int argc, char_t **argv)
 
 	return retval;
 }
+
+#ifdef RTCONFIG_STAINFO
+int
+ej_wl_stainfo_list_5g(int eid, webs_t wp, int argc, char_t **argv)
+{
+	int ret = 0, retval = 0, ret_t = 0;
+	int i, unit = 1;
+	char prefix[] = "wlXXXXXXXXXX_", tmp[128];
+
+	if (!rpc_qtn_ready())
+		return retval;
+
+	ret += ej_wl_stainfo_list_qtn(eid, wp, argc, argv, WIFINAME);
+
+        if (nvram_get_int("sw_mode") == SW_MODE_REPEATER && nvram_get_int("wlc_band"))
+                return ret;
+
+	for (i = 1; i < 4; i++) {
+		sprintf(prefix, "wl%d.%d_", unit, i);
+		if (nvram_match(strcat_r(prefix, "bss_enabled", tmp), "1")){
+			if (ret_t != ret)
+				retval += websWrite(wp, ", ");
+			ret += ej_wl_stainfo_list_qtn(eid, wp, argc, argv, wl_vifname_qtn(unit, i));
+			ret_t = ret;
+		}
+	}
+
+	return retval;
+}
+#endif
 
 int
 wl_status_5g(int eid, webs_t wp, int argc, char_t **argv)
@@ -2191,6 +2330,7 @@ wl_status_5g_array(int eid, webs_t wp, int argc, char_t **argv)
 {
 	int ret, retval = 0;
 	qcsapi_SSID ssid;
+	char ssidtmp[sizeof(qcsapi_SSID)*2];
 	qcsapi_unsigned_int channel;
 	qcsapi_unsigned_int bw;
 	char chspec_str[8];
@@ -2205,7 +2345,11 @@ wl_status_5g_array(int eid, webs_t wp, int argc, char_t **argv)
 		ret += websWrite(wp, "\"\",\"\",\"\",\"\",\"\",\"\",");
 		dbG("rpc_qcsapi_get_SSID %s error, return: %d\n", WIFINAME, ret);
 	}
-	retval += websWrite(wp, "\"%s\",", ssid);
+
+	if (str_escape_quotes(ssidtmp, ssid, sizeof(ssidtmp)) == 0 )
+		strncpy(ssidtmp, ssid, sizeof(ssidtmp));
+
+	retval += websWrite(wp, "\"%s\",", ssidtmp);
 
 	int rssi_by_chain[4], rssi;
 	qcsapi_wifi_get_rssi_by_chain(WIFINAME, 0, &rssi_by_chain[0]);
@@ -2264,7 +2408,7 @@ ej_wl_status_qtn_array(int eid, webs_t wp, int argc, char_t **argv, const char *
 	char *leaselist = NULL, *leaselistptr;
 	int found;
 	char ipentry[40], macentry[18];
-	char hostnameentry[16];
+	char hostnameentry[32], tmp[16];
 
 	if (!rpc_qtn_ready())
 		return retval;
@@ -2276,31 +2420,26 @@ ej_wl_status_qtn_array(int eid, webs_t wp, int argc, char_t **argv, const char *
 
 			ret = qcsapi_wifi_get_associated_device_mac_addr(ifname, i, (uint8_t *) &sta_address);
 			if (ret < 0) {
-				ret += websWrite(wp, "-1];");
 				dbG("Qcsapi qcsapi_wifi_get_associated_device_mac_addr %s error, return: %d\n", ifname, ret);
 			}
 
 			ret= qcsapi_wifi_get_rssi_in_dbm_per_association(ifname, i, &rssi);
 			if (ret < 0) {
-				ret += websWrite(wp, "-1];");
 				dbG("Qcsapi qcsapi_wifi_get_rssi_in_dbm_per_association %s error, return: %d\n", ifname, ret);
 			}
 
 			ret = qcsapi_wifi_get_tx_phy_rate_per_association(ifname, i, &tx_phy_rate);
 			if (ret < 0) {
-				ret += websWrite(wp, "-1];");
 				dbG("Qcsapi qcsapi_wifi_get_tx_phy_rate_per_association %s error, return: %d\n", ifname, ret);
 			}
 
 			ret = qcsapi_wifi_get_rx_phy_rate_per_association(ifname, i, &rx_phy_rate);
 			if (ret < 0) {
-				ret += websWrite(wp, "-1];");
 				dbG("Qcsapi qcsapi_wifi_get_rx_phy_rate_per_association %s error, return: %d\n", ifname, ret);
 			}
 
 			ret = qcsapi_wifi_get_time_associated_per_association(ifname, i, &time_associated);
 			if (ret < 0) {
-				ret += websWrite(wp, "-1];");
 				dbG("Qcsapi qcsapi_wifi_get_time_associated_per_association %s error, return: %d\n", ifname, ret);
 			}
 
@@ -2331,17 +2470,17 @@ ej_wl_status_qtn_array(int eid, webs_t wp, int argc, char_t **argv, const char *
 				}
 
 				if (found || !leaselist) {
-					ret += websWrite(wp, "\"%s\",", (found ? ipentry : ""));
+					retval += websWrite(wp, "\"%s\",", (found ? ipentry : ""));
 				}
 			} else {
-				ret += websWrite(wp, "\"<unknown>\",");
+				retval += websWrite(wp, "\"<unknown>\",");
 			}
 
 			// Retrieve hostname from dnsmasq leases
 			if (leaselist) {
 				leaselistptr = leaselist;
 
-				while ((leaselistptr < leaselist+strlen(leaselist)-2) && (sscanf(leaselistptr,"%*s %17s %15s %15s %*s", macentry, ipentry, hostnameentry) == 3)) {
+				while ((leaselistptr < leaselist+strlen(leaselist)-2) && (sscanf(leaselistptr,"%*s %17s %15s %15s %*s", macentry, ipentry, tmp) == 3)) {
 					if (upper_strcmp(macentry,  wl_ether_etoa((struct ether_addr *) &sta_address)) == 0) {
 						found += 2;
 						break;
@@ -2349,21 +2488,24 @@ ej_wl_status_qtn_array(int eid, webs_t wp, int argc, char_t **argv, const char *
 						leaselistptr = strstr(leaselistptr,"\n")+1;
 					}
 				}
+				if ((found) && (str_escape_quotes(hostnameentry, tmp, sizeof(hostnameentry)) == 0 ))
+					strncpy(hostnameentry, tmp, sizeof(hostnameentry));
+
 				if (found == 0) {
 					// Not in arplist nor in leaselist
-					ret += websWrite(wp, "\"<not found>\",\"<not found>\",");
+					retval += websWrite(wp, "\"<not found>\",\"<not found>\",");
 				} else if (found == 1) {
 					// Only in arplist (static IP)
-					ret += websWrite(wp, "\"<not found>\",");
+					retval += websWrite(wp, "\"<not found>\",");
 				} else if (found == 2) {
 					// Only in leaselist (dynamic IP that has not communicated with router for a while)
-					ret += websWrite(wp, "\"%s\", \"%s\",", ipentry, hostnameentry);
+					retval += websWrite(wp, "\"%s\", \"%s\",", ipentry, hostnameentry);
 				} else if (found == 3) {
 					// In both arplist and leaselist (dynamic IP)
-					ret += websWrite(wp, "\"%s\",", hostnameentry);
+					retval += websWrite(wp, "\"%s\",", hostnameentry);
 				}
 			} else {
-				ret += websWrite(wp, "\"<unknown>\",");
+				retval += websWrite(wp, "\"<unknown>\",");
 			}
 
 			retval += websWrite(wp, "\"%d\",", rssi);
