@@ -3391,7 +3391,6 @@ pcre-8.31/stamp-h1: pcre-8.31/configure
 	[ -d pcre-8.31/m4 ] || mkdir pcre-8.31/m4
 
 pcre-8.31: pcre-8.31/stamp-h1
-	@$(MAKE) -C pcre-8.31 $(PARALLEL_BUILD)
 
 pcre-8.31-install: pcre-8.31
 	@$(SEP)
