@@ -3418,10 +3418,10 @@ pcre-8.35: pcre-8.35/stamp-h1
 
 pcre-8.35-install: pcre-8.35
 	@$(SEP)
-	install -D pcre-8.35/.libs/libpcre.so.1.0.1 $(INSTALLDIR)/pcre-8.35/usr/lib/libpcre.so.1.0.1
-	cd $(INSTALLDIR)/pcre-8.35/usr/lib && ln -sf libpcre.so.1.0.1 libpcre.so.1
-	cd $(INSTALLDIR)/pcre-8.35/usr/lib && ln -sf libpcre.so.1.0.1 libpcre.so
-	$(STRIP) -s $(INSTALLDIR)/pcre-8.35/usr/lib/libpcre.so.1.0.1
+	install -D pcre-8.35/.libs/libpcre.so.1.2.3 $(INSTALLDIR)/pcre-8.35/usr/lib/libpcre.so.1.2.3
+	cd $(INSTALLDIR)/pcre-8.35/usr/lib && ln -sf libpcre.so.1.2.3 libpcre.so.1
+	cd $(INSTALLDIR)/pcre-8.35/usr/lib && ln -sf libpcre.so.1.2.3 libpcre.so
+	$(STRIP) -s $(INSTALLDIR)/pcre-8.35/usr/lib/libpcre.so.1.2.3
 
 pcre-8.35-clean:
 	-@$(MAKE) -C pcre-8.35 clean
