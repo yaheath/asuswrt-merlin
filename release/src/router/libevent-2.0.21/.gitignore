@@ -4,9 +4,13 @@
 .deps
 .libs
 Makefile
+Makefile.in
+/aclocal.m4
 autom4te.cache/
 config.h
+/config.h.in
 configure
+configure.in
 include/event2/event-config.h
 libevent.pc
 libevent_openssl.pc
@@ -31,4 +35,5 @@ test/test-init
 test/test-ratelim
 test/test-time
 test/test-weof
+test-driver
 staged/*

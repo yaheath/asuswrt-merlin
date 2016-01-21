@@ -2566,10 +2566,13 @@ libevent-2.0.21: libevent-2.0.21/Makefile
 libevent-2.0.21/Makefile:
 	$(MAKE) libevent-2.0.21-configure
 
-libevent-2.0.21-configure:
+libevent-2.0.21-configure: libevent-2.0.21/configure
 	( cd libevent-2.0.21 ; CFLAGS="$(CFLAGS) -Os -Wall $(EXTRACFLAGS)" \
 		$(CONFIGURE) --prefix=/usr --bindir=/usr/sbin --libdir=/usr/lib \
 	)
+
+libevent-2.0.21/configure:
+	cd libevent-2.0.21 && autoreconf -i
 
 libevent-2.0.21-install: libevent-2.0.21
 	install -D $(STAGEDIR)/usr/lib/libevent-2.0.so.5 $(INSTALLDIR)/libevent-2.0.21/usr/lib/libevent-2.0.so.5
