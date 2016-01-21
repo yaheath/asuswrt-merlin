@@ -2589,7 +2589,10 @@ tor: openssl zlib libevent-2.0.21 tor/Makefile
 	@$(SEP)
 	$(MAKE) -C $@ $(PARALLEL_BUILD)
 
-tor/Makefile:
+tor/configure:
+	@cd tor && autoreconf -i
+
+tor/Makefile: tor/configure
 	(cd tor ; $(CONFIGURE) --enable-static-libevent --with-libevent-dir=$(STAGEDIR)/usr \
 					--with-openssl-dir=$(TOP)/openssl \
 					--with-zlib-dir=$(TOP)/zlib \
