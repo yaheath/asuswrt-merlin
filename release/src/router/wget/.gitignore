@@ -4,6 +4,7 @@ config.log
 config.status
 doc/*
 doc
+intl/
 lib/
 md5/
 po/
