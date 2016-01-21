@@ -6,6 +6,7 @@
 Makefile
 autom4te.cache/
 config.h
+configure
 include/event2/event-config.h
 libevent.pc
 libevent_openssl.pc
